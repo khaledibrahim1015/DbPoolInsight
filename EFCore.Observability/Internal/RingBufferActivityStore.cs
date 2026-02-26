@@ -24,18 +24,20 @@ internal sealed class RingBufferActivityStore : IInstanceActivityStore
     }
     public IReadOnlyList<InstanceActivity> GetRecent(string contextName, int take = 20)
     {
-
-
-
-        throw new NotImplementedException();
+        if(!_queues.TryGetValue(contextName, out var queue))
+            return [];
+        return queue.TakeLast(take);
     }
     public IReadOnlyList<InstanceActivity> GetAll(string contextName)
     {
-        throw new NotImplementedException();
+        if (!_queues.TryGetValue(contextName, out var queue))
+            return [];
+        return queue.ToList();
     }
     public void Clear(string contextName)
     {
-        throw new NotImplementedException();
+        if (_queues.TryGetValue(contextName, out var queue))
+            queue.Clear();
     }
 
  
@@ -64,8 +66,25 @@ internal sealed class RingBufferActivityStore : IInstanceActivityStore
             }
         }
 
+        public List<InstanceActivity> TakeLast(int count )
+        {
+            lock (_lock)
+            {
+                var all  = _inner.ToArray();
+                var skip  =  Math.Max(0, all.Length - count);
+                return all.Skip(skip).ToList();
+            }
+        }
 
+        public List<InstanceActivity> ToList()
+        {
+            lock (_lock) return [.. _inner];
+        }
 
+        public void Clear()
+        {
+            lock (_lock) _inner.Clear();
+        }
 
 
     }
