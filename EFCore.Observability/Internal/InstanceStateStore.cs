@@ -29,6 +29,15 @@ internal class InstanceStateStore
             return;
         }
     }
+    public bool TryUpdateState(Guid instanceId, Action<InstanceState> updateAction)
+    {
+        if (_states.TryGetValue(instanceId, out var existing))
+        {
+            updateAction(existing);
+            return true;
+        }
+        return false;
+    }
     public bool TryGetState(Guid instanceId, out InstanceState? state) =>
      _states.TryGetValue(instanceId, out state);
 

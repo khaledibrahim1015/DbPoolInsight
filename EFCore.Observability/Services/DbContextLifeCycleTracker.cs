@@ -134,9 +134,12 @@ public class DbContextLifeCycleTracker : IContextMetricsCollector
 
         if (_instanceStore.TryGetState(instanceId, out var instanceState) && instanceState != null)
         {
-            instanceState.WasReturnedToPool = true;
-            instanceState.CurrentLease = lease; 
-            instanceState.LastReturned = DateTime.UtcNow;
+            _instanceStore.TryUpdateState(instanceId, s =>
+            {
+                 s.WasReturnedToPool = true;
+                 s.CurrentLease = lease;
+                 s.LastReturned = DateTime.UtcNow;
+            });
 
             if (_options.TrackRentDurations)
             {
@@ -147,7 +150,7 @@ public class DbContextLifeCycleTracker : IContextMetricsCollector
         }
 
         if (_options.EnableDiagnosticLogging)
-            _logger.LogDebug(
+            _logger.LogInformation(
                 "[EFObservability] Pool returned: {Context} Instance={Id} Lease={Lease}",
                 contextName, instanceId.ToString()[..8], lease);
 
