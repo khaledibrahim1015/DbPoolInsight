@@ -8,7 +8,9 @@
   </Folder>
   <Folder Name="/src/EFCore.Observability.OpenTelemetry/" />
   <Folder Name="/src/EFCore.Observability.Prometheus/" />
-  <Folder Name="/src/EFCore.Observability/" />
+  <Folder Name="/src/EFCore.Observability/">
+    <Project Path="EFCore.Observability/EFCore.Observability.csproj" Id="e742d8c0-2d0e-4620-892b-958025584530" />
+  </Folder>
   <Folder Name="/tests/" />
   <Folder Name="/tests/EFCore.Observability.Tests/" />
 </Solution>

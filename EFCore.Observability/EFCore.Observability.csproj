@@ -1,0 +1,32 @@
+﻿
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<TargetFrameworks>net8.0</TargetFrameworks>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<LangVersion>latest</LangVersion>
+		<RootNamespace>EFCore.Observability</RootNamespace>
+		<AssemblyName>EFCore.Observability</AssemblyName>
+		<PackageId>EFCore.Observability</PackageId>
+		<Version>1.0.0</Version>
+		<Authors>Khaled ibrahim</Authors>
+		<Description>EF Core DbContext pool observability — lifecycle tracking, pool health metrics, leak detection, and rent duration histograms.</Description>
+		<PackageTags>efcore;diagnostics;observability;metrics;dbcontext;pool;health</PackageTags>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+	</PropertyGroup>
+
+
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Options" Version="8.0.0" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.0" />
+	</ItemGroup>
+
+
+
+	<ItemGroup>
+	  <ProjectReference Include="..\EFCore.Observability.Core\EFCore.Observability.Core.csproj" />
+	</ItemGroup>
+</Project>
