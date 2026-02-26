@@ -29,4 +29,10 @@
 	<ItemGroup>
 	  <ProjectReference Include="..\EFCore.Observability.Core\EFCore.Observability.Core.csproj" />
 	</ItemGroup>
+
+
+
+	<ItemGroup>
+	  <Folder Include="Interceptors\" />
+	</ItemGroup>
 </Project>
