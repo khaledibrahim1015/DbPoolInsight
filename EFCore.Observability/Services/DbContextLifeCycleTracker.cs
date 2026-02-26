@@ -59,7 +59,7 @@ public class DbContextLifeCycleTracker : IContextMetricsCollector
     {
 
         if (!isPooled)
-            HandleStandardCreated(contextName, instanceId);
+            HandleStandardCreated(contextName, instanceId , lease );
 
         // Pooled: track physical creations by unique instance ID
         // For pooled contexts, DON'T increment TotalRents here
@@ -77,6 +77,16 @@ public class DbContextLifeCycleTracker : IContextMetricsCollector
         if(isOverflow)
             state.IncrementOverflowCreations();
 
+        _instanceStore.AddOrUpdateState(instanceId, new InstanceState
+        {
+            ContextName = contextName,
+            IsPooled = true,
+            CurrentLease = lease,
+            CreatedAt = DateTime.UtcNow,
+            LastRented = DateTime.UtcNow,
+            IsOverflow = isOverflow
+
+        }); 
         if (_options.EnableDiagnosticLogging)
         {
             if (isOverflow)
@@ -137,7 +147,7 @@ public class DbContextLifeCycleTracker : IContextMetricsCollector
 
 
 
-    private void HandleStandardCreated(string contextName, Guid instanceId)
+    private void HandleStandardCreated(string contextName, Guid instanceId , int lease)
     {
         var state = _standardStates.GetOrAdd(contextName,
                                         _ => new StandardMetricsState(contextName));
@@ -150,6 +160,7 @@ public class DbContextLifeCycleTracker : IContextMetricsCollector
         {
             ContextName = contextName,
             IsPooled = false,
+            CurrentLease = lease,
             CreatedAt = DateTime.UtcNow,
             LastRented = DateTime.UtcNow
         });
