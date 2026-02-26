@@ -108,8 +108,8 @@ public class DbContextLifeCycleTracker : IContextMetricsCollector
         long rents = state.IncrementTotalRents();
         state.Touch();  
 
-        _instanceStore.TryAddSeen(contextName, instanceId); 
-       
+        _instanceStore.TryAddRented(contextName, instanceId);  // Track that this instance is currently rented
+
         _instanceStore.UpdateState(instanceId , s =>  
         {
             s.CurrentLease = lease;
@@ -126,13 +126,30 @@ public class DbContextLifeCycleTracker : IContextMetricsCollector
     /// <inheritdoc/>
     public void OnContextReturnedToPool(string contextName, Guid instanceId, int lease)
     {
+        if (!_pooledStates.TryGetValue(contextName, out var state)) return;
 
+        state.IncrementTotalReturns();
+        state.Touch();
+        _instanceStore.RemoveRented(contextName, instanceId);  //  i think usless but good to keep the store clean of currently rented instances
 
+        if (_instanceStore.TryGetState(instanceId, out var instanceState) && instanceState != null)
+        {
+            instanceState.WasReturnedToPool = true;
+            instanceState.CurrentLease = lease; 
+            instanceState.LastReturned = DateTime.UtcNow;
 
+            if (_options.TrackRentDurations)
+            {
+                var durationMs = (long)(DateTime.UtcNow - instanceState.LastRented).TotalMilliseconds;
+                state.RecordRentDuration(durationMs);
+                RecordActivity(contextName, instanceId, lease, instanceState.LastRented, DateTime.UtcNow, durationMs);
+            }
+        }
 
-
-
-
+        if (_options.EnableDiagnosticLogging)
+            _logger.LogDebug(
+                "[EFObservability] Pool returned: {Context} Instance={Id} Lease={Lease}",
+                contextName, instanceId.ToString()[..8], lease);
 
     }
     /// <inheritdoc/>

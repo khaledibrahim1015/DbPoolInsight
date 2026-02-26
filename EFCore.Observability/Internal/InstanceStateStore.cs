@@ -21,10 +21,6 @@ internal class InstanceStateStore
     // InstanceStates
     public void AddOrUpdateState(Guid instanceId, InstanceState state)
         =>  _states[instanceId] = state;
-
-    public bool TryRemoveState(Guid instanceId, out InstanceState? state)
-        => _states.TryRemove(instanceId, out state);
-
     public void UpdateState(Guid instanceId, Action<InstanceState> updateAction)
     {
         if(_states.TryGetValue(instanceId, out var existing))
@@ -33,6 +29,11 @@ internal class InstanceStateStore
             return;
         }
     }
+    public bool TryGetState(Guid instanceId, out InstanceState? state) =>
+     _states.TryGetValue(instanceId, out state);
+
+    public bool TryRemoveState(Guid instanceId, out InstanceState? state) =>
+        _states.TryRemove(instanceId, out state);
 
     //_seenInstances
     public bool TryAddSeen(string contextName, Guid instanceId)
@@ -50,7 +51,11 @@ internal class InstanceStateStore
         var rented = _rentedInstances.GetOrAdd(contextName, _ => new ConcurrentDictionary<Guid, bool>());
         return rented.TryAdd(instanceId, true);
     }
-
+    public void RemoveRented(string contextName, Guid instanceId)
+    {
+        if (_rentedInstances.TryGetValue(contextName, out var rented))
+            rented.TryRemove(instanceId, out _);
+    }
 
 
 }
