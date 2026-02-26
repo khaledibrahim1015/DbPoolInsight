@@ -1,1 +1,14 @@
-<Solution />
+<Solution>
+  <Folder Name="/docs/" />
+  <Folder Name="/samples/" />
+  <Folder Name="/samples/EFCore.Observability.Sample/" />
+  <Folder Name="/src/" />
+  <Folder Name="/src/EFCore.Observability.Core/">
+    <Project Path="EFCore.Observability.Core/EFCore.Observability.Core.csproj" Id="23067c25-beea-4a91-bed9-cf2497c4bca0" />
+  </Folder>
+  <Folder Name="/src/EFCore.Observability.OpenTelemetry/" />
+  <Folder Name="/src/EFCore.Observability.Prometheus/" />
+  <Folder Name="/src/EFCore.Observability/" />
+  <Folder Name="/tests/" />
+  <Folder Name="/tests/EFCore.Observability.Tests/" />
+</Solution>

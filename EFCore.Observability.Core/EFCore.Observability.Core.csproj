@@ -1,0 +1,17 @@
+﻿
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<TargetFrameworks>net8.0</TargetFrameworks>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<LangVersion>latest</LangVersion>
+		<RootNamespace>EFCore.Observability.Core</RootNamespace>
+		<AssemblyName>EFCore.Observability.Core</AssemblyName>
+		<PackageId>EFCore.Observability.Core</PackageId>
+		<Version>1.0.0</Version>
+		<Authors>Khaled ibrahim</Authors>
+		<Description>Zero-dependency abstractions and models for EFCore.Observability — DbContext pool health, lifecycle metrics, and activity tracking.</Description>
+		<PackageTags>efcore;diagnostics;observability;metrics;dbcontext;pool</PackageTags>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+	</PropertyGroup>
+</Project>
