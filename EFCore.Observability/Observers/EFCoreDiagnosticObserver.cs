@@ -112,11 +112,39 @@ public sealed class EFCoreDiagnosticObserver : IObserver<DiagnosticListener>
                     name);
             }
         }
-
-
-
-
     }
+    /// <summary>
+    /// This fires when a context is PHYSICALLY DISPOSED
+    /// For pooled contexts, this only happens on overflow or shutdown
+    /// </summary>
+    private void HandleContextDisposed(object? payload)
+    {
+        if (payload is not DbContextEventData eventData || eventData.Context is null)
+        {
+            _logger.LogWarning("[EFObservability] ContextDisposed: unexpected event data type");
+            return;
+        }
+
+        var context = eventData.Context;
+        var name = context.GetType().Name;
+        var instanceId = context.ContextId.InstanceId;
+        var lease = context.ContextId.Lease;
+        var isPooled = ResolveIsPooled(context);
+
+        if (isPooled)
+            // Pooled context being destroyed means:
+            // 1. Pool overflow (couldn't be returned)
+            // 2. Application shutdown
+            // 3. Context was leaked (never returned)
+            _collector.OnPooledContextDisposed(name, instanceId, lease);
+        else
+            // Non-pooled context disposal (normal)
+            _collector.OnStandardContextDisposed(name, instanceId);
+    }
+
+
+
+
 
     private static bool ResolveIsPooled(DbContext context)
     {
