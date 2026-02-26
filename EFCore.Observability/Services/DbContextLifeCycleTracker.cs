@@ -3,6 +3,7 @@
 using EFCore.Observability.Core.Abstractions;
 using EFCore.Observability.Core.Models;
 using EFCore.Observability.Internal;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Collections.Concurrent;
@@ -22,6 +23,7 @@ public class DbContextLifeCycleTracker : IContextMetricsCollector
 
      private readonly  InstanceStateStore _instanceStore =  new();
 
+    private readonly ConcurrentDictionary<string, PooledMetricsState> _pooledStates = new();
 
     private readonly ConcurrentDictionary<string, StandardMetricsState> _standardStates = new();
 
@@ -34,7 +36,19 @@ public class DbContextLifeCycleTracker : IContextMetricsCollector
         _options = options.Value;
         _activityStore = activityStore;
     }
-
+    // ── Pool size registration ────────────────────────────────────────────
+    public void RegisterPoolSize<TContext>(int poolSize) where TContext : DbContext
+    {
+        // Use the type name as the key
+        string contextName = typeof(TContext).Name;
+        RegisterPoolSize(contextName, poolSize);
+    }
+    public void RegisterPoolSize(string contextName, int poolSize)
+    {
+        var state = _pooledStates.GetOrAdd(contextName,
+            _ => new PooledMetricsState(contextName, poolSize));
+        state.MaxPoolSize = poolSize;
+    }
 
 
 
@@ -47,11 +61,34 @@ public class DbContextLifeCycleTracker : IContextMetricsCollector
         if (!isPooled)
             HandleStandardCreated(contextName, instanceId);
 
+        // Pooled: track physical creations by unique instance ID
+        // For pooled contexts, DON'T increment TotalRents here
+        // It will be tracked via OnContextRented instead
+        // For pooled contexts, only count physical creations (first time we see this instanceId).
+        if (!_instanceStore.TryAddSeen(contextName, instanceId))
+            return; // Already seen — this is a reuse, handled by OnContextRented
 
-        // if pooled 
+        var state =  GetOrAddPooledState(contextName);
+        long creationCount = state.IncrementPhysicalCreations();
+        state.Touch();
 
+        // Determine at creation time whether this instance is overflow.
+        bool isOverflow  = state.MaxPoolSize > 0 && creationCount > state.MaxPoolSize;
+        if(isOverflow)
+            state.IncrementOverflowCreations();
 
-        throw new NotImplementedException();
+        if (_options.EnableDiagnosticLogging)
+        {
+            if (isOverflow)
+                _logger.LogWarning(
+                    "[EFObservability] Pool OVERFLOW physical create: {Context} Instance={Id} Physical={Count} MaxPool={Max}",
+                    contextName, instanceId.ToString()[..8], creationCount, state.MaxPoolSize);
+            else
+                _logger.LogInformation(
+                    "[EFObservability] Pool physical create: {Context} Instance={Id} Physical={Count}",
+                    contextName, instanceId.ToString()[..8], creationCount);
+        }
+
     }
 
     /// <inheritdoc/>
@@ -98,6 +135,8 @@ public class DbContextLifeCycleTracker : IContextMetricsCollector
 
 
 
+
+
     private void HandleStandardCreated(string contextName, Guid instanceId)
     {
         var state = _standardStates.GetOrAdd(contextName,
@@ -121,6 +160,10 @@ public class DbContextLifeCycleTracker : IContextMetricsCollector
                 contextName, instanceId.ToString()[..8]);
     }
 
+
+    private PooledMetricsState GetOrAddPooledState (string contextName )
+            =>   _pooledStates.GetOrAdd(contextName,
+                                        _ => new PooledMetricsState(contextName));
     private void RecordActivity(
         string contextName, Guid instanceId, int lease,
         DateTime startedAt, DateTime endedAt, long durationMs)

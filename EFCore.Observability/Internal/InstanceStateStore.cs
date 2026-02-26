@@ -9,8 +9,10 @@ namespace EFCore.Observability.Internal;
 /// </summary>
 internal class InstanceStateStore
 {
-    private readonly ConcurrentDictionary<Guid, InstanceState> _states = new();
 
+    private readonly ConcurrentDictionary<Guid, InstanceState> _states = new();
+    /// <summary>Tracks all instance IDs seen per context to detect physical creations.</summary>
+    private readonly ConcurrentDictionary<string , ConcurrentDictionary<Guid , bool>> _seenInstances = new(); 
 
 
 
@@ -20,6 +22,14 @@ internal class InstanceStateStore
 
     public bool TryRemoveState(Guid instanceId, out InstanceState? state)
         => _states.TryRemove(instanceId, out state);
+
+
+
+    public bool TryAddSeen(string contextName, Guid instanceId)
+    {
+        var seen = _seenInstances.GetOrAdd(contextName, _ => new ConcurrentDictionary<Guid, bool>());
+        return seen.TryAdd(instanceId, true);
+    }
 
 
 }
