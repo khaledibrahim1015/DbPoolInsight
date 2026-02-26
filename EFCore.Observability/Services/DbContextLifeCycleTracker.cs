@@ -15,7 +15,7 @@ namespace EFCore.Observability.Services;
 /// Implements both <see cref="IContextMetricsCollector"/> (write) and
 /// <see cref="IContextMetricsProvider"/> (read).
 /// </summary>
-public class DbContextLifeCycleTracker : IContextMetricsCollector  
+public class DbContextLifeCycleTracker : IContextMetricsCollector  , IContextMetricsProvider
 {
     private readonly ILogger<DbContextLifeCycleTracker> _logger;
     private readonly ObservabilityOptions _options;
@@ -270,6 +270,30 @@ public class DbContextLifeCycleTracker : IContextMetricsCollector
             DurationMs = durationMs
         });
     }
+
+
+    // ── IContextMetricsProvider ───────────────────────────────────────────
+
+    public PooledContextMetrics? GetPooledMetrics(string contextName) =>
+        _pooledStates.TryGetValue(contextName, out var s) ? s.Snapshot() : null;
+
+    public StandardContextMetrics? GetStandardMetrics(string contextName) =>
+        _standardStates.TryGetValue(contextName, out var s) ? s.Snapshot() : null;
+
+    public IReadOnlyDictionary<string, PooledContextMetrics> GetAllPooledMetrics() =>
+        _pooledStates.ToDictionary(kv => kv.Key, kv => kv.Value.Snapshot());
+
+    public IReadOnlyDictionary<string, StandardContextMetrics> GetAllStandardMetrics() =>
+        _standardStates.ToDictionary(kv => kv.Key, kv => kv.Value.Snapshot());
+
+    // ── Activity access (for query service) ──────────────────────────────
+
+    public IReadOnlyList<InstanceActivity> GetRecentActivity(string contextName, int take = 20) =>
+        _activityStore.GetRecent(contextName, take);
+
+    public IReadOnlyList<InstanceActivity> GetAllActivity(string contextName) =>
+        _activityStore.GetAll(contextName);
+
 
 
 
