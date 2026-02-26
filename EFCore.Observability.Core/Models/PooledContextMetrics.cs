@@ -11,7 +11,7 @@ public sealed record PooledContextMetrics
 {
     // ----- Identity -----------
     public string ContextName { get; init; } = default!;
-    public DateTime LastUpdate { get; init; } = DateTime.UtcNow;
+    public DateTime LastUpdated { get; init; } = DateTime.UtcNow;
 
     // ── Pool configuration ────────────────────────────────────────────────
     public int MaxPoolSize { get; init; }
