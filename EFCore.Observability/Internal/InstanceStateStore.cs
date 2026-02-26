@@ -12,24 +12,45 @@ internal class InstanceStateStore
 
     private readonly ConcurrentDictionary<Guid, InstanceState> _states = new();
     /// <summary>Tracks all instance IDs seen per context to detect physical creations.</summary>
-    private readonly ConcurrentDictionary<string , ConcurrentDictionary<Guid , bool>> _seenInstances = new(); 
+    private readonly ConcurrentDictionary<string , ConcurrentDictionary<Guid , bool>> _seenInstances = new();
+    /// <summary>Tracks currently rented instances per context for ActiveRents calculation.</summary>
+    private readonly ConcurrentDictionary<string, ConcurrentDictionary<Guid, bool>> _rentedInstances = new();
 
 
 
-
+    // InstanceStates
     public void AddOrUpdateState(Guid instanceId, InstanceState state)
         =>  _states[instanceId] = state;
 
     public bool TryRemoveState(Guid instanceId, out InstanceState? state)
         => _states.TryRemove(instanceId, out state);
 
+    public void UpdateState(Guid instanceId, Action<InstanceState> updateAction)
+    {
+        if(_states.TryGetValue(instanceId, out var existing))
+        {
+            updateAction(existing);
+            return;
+        }
+    }
 
-
+    //_seenInstances
     public bool TryAddSeen(string contextName, Guid instanceId)
     {
         var seen = _seenInstances.GetOrAdd(contextName, _ => new ConcurrentDictionary<Guid, bool>());
         return seen.TryAdd(instanceId, true);
     }
+
+
+
+
+    //_rentedInstances
+    public bool TryAddRented(string contextName, Guid instanceId)
+    {
+        var rented = _rentedInstances.GetOrAdd(contextName, _ => new ConcurrentDictionary<Guid, bool>());
+        return rented.TryAdd(instanceId, true);
+    }
+
 
 
 }

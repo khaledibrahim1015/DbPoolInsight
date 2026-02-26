@@ -104,12 +104,36 @@ public class DbContextLifeCycleTracker : IContextMetricsCollector
     /// <inheritdoc/>
     public void OnContextRented(string contextName, Guid instanceId, int lease)
     {
-        throw new NotImplementedException();
+        var state = GetOrAddPooledState(contextName);
+        long rents = state.IncrementTotalRents();
+        state.Touch();  
+
+        _instanceStore.TryAddSeen(contextName, instanceId); 
+       
+        _instanceStore.UpdateState(instanceId , s =>  
+        {
+            s.CurrentLease = lease;
+            s.LastRented = DateTime.UtcNow;
+            s.WasReturnedToPool =  false; // Clear the flag on rent
+        });
+
+        if (_options.EnableDiagnosticLogging)
+            _logger.LogInformation(
+                "[EFObservability] Pool rented: {Context} Instance={Id} Lease={Lease} TotalRents={Rents}",
+                contextName, instanceId.ToString()[..8], lease, rents);
     }
+
     /// <inheritdoc/>
     public void OnContextReturnedToPool(string contextName, Guid instanceId, int lease)
     {
-        throw new NotImplementedException();
+
+
+
+
+
+
+
+
     }
     /// <inheritdoc/>
     public void OnPooledContextDisposed(string contextName, Guid instanceId, int lease)
