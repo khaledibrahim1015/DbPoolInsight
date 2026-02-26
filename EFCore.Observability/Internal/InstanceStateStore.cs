@@ -51,7 +51,11 @@ internal class InstanceStateStore
         return seen.TryAdd(instanceId, true);
     }
 
-
+    public void TryRemoveSeen(string contextName, Guid instanceId)
+    {
+        if (_seenInstances.TryGetValue(contextName, out var seen))
+            seen.TryRemove(instanceId, out _);
+    }
 
 
     //_rentedInstances
@@ -60,7 +64,7 @@ internal class InstanceStateStore
         var rented = _rentedInstances.GetOrAdd(contextName, _ => new ConcurrentDictionary<Guid, bool>());
         return rented.TryAdd(instanceId, true);
     }
-    public void RemoveRented(string contextName, Guid instanceId)
+    public void TryRemoveRented(string contextName, Guid instanceId)
     {
         if (_rentedInstances.TryGetValue(contextName, out var rented))
             rented.TryRemove(instanceId, out _);

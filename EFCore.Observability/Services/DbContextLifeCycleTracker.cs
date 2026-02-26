@@ -15,7 +15,7 @@ namespace EFCore.Observability.Services;
 /// Implements both <see cref="IContextMetricsCollector"/> (write) and
 /// <see cref="IContextMetricsProvider"/> (read).
 /// </summary>
-public class DbContextLifeCycleTracker : IContextMetricsCollector 
+public class DbContextLifeCycleTracker : IContextMetricsCollector  , IContextMetricsProvider
 {
     private readonly ILogger<DbContextLifeCycleTracker> _logger;
     private readonly ObservabilityOptions _options;
@@ -52,7 +52,7 @@ public class DbContextLifeCycleTracker : IContextMetricsCollector
 
 
 
-
+    // ── IContextMetricsCollector ─────────────────────────────────────────────
 
     /// <inheritdoc/>
     public void OnContextInitialized(string contextName, Guid instanceId, int lease, bool isPooled)
@@ -130,7 +130,7 @@ public class DbContextLifeCycleTracker : IContextMetricsCollector
 
         state.IncrementTotalReturns();
         state.Touch();
-        _instanceStore.RemoveRented(contextName, instanceId);  //  i think usless but good to keep the store clean of currently rented instances
+        _instanceStore.TryRemoveRented(contextName, instanceId);  //  i think usless but good to keep the store clean of currently rented instances
 
         if (_instanceStore.TryGetState(instanceId, out var instanceState) && instanceState != null)
         {
@@ -158,7 +158,50 @@ public class DbContextLifeCycleTracker : IContextMetricsCollector
     /// <inheritdoc/>
     public void OnPooledContextDisposed(string contextName, Guid instanceId, int lease)
     {
-        throw new NotImplementedException();
+        if (!_pooledStates.TryGetValue(contextName, out var state)) return;
+
+        long creations = state.ReadPhysicalCreations();
+        long disposals = state.ReadPhysicalDisposals();
+        state.IncrementPhysicalDisposals();
+        state.Touch();
+
+        _instanceStore.TryRemoveRented(contextName, instanceId);
+        _instanceStore.TryRemoveSeen(contextName, instanceId);
+
+        if (_instanceStore.TryRemoveState(instanceId, out var instanceState) && instanceState != null)
+        {
+            var classification = PoolOverflowDetector.Classify(
+                instanceState, creations, disposals, state.MaxPoolSize);
+
+            switch (classification)
+            {
+                case DisposalClassification.OverflowAfterReturn:
+                case DisposalClassification.OverflowCreation:
+                case DisposalClassification.OverflowCapacity:
+                    state.IncrementOverflowDisposals();
+                    if (_options.EnableDiagnosticLogging)
+                        _logger.LogInformation(
+                            "[EFObservability] Pool overflow dispose ({Reason}): {Context} Instance={Id}",
+                            classification, contextName, instanceId.ToString()[..8]);
+                    break;
+
+                case DisposalClassification.Leaked:
+                    state.IncrementLeakedContexts();
+                    if (_options.EnableDiagnosticLogging)
+                        _logger.LogWarning(
+                        "[EFObservability] LEAKED context: {Context} Instance={Id} HeldFor={Duration}ms",
+                        contextName, instanceId.ToString()[..8],
+                        (long)(DateTime.UtcNow - instanceState.LastRented).TotalMilliseconds);
+                    break;
+            }
+
+            if (_options.TrackRentDurations)
+            {
+                var durationMs = (long)(DateTime.UtcNow - instanceState.LastRented).TotalMilliseconds;
+                state.RecordRentDuration(durationMs);
+                RecordActivity(contextName, instanceId, lease, instanceState.LastRented, DateTime.UtcNow, durationMs);
+            }
+        }
     }
 
     /// <inheritdoc/>
@@ -185,12 +228,7 @@ public class DbContextLifeCycleTracker : IContextMetricsCollector
                 contextName, instanceId.ToString()[..8]);
 
     }
-
-
-
-
-
-
+    // ── Private helpers ───────────────────────────────────────────────────
     private void HandleStandardCreated(string contextName, Guid instanceId , int lease)
     {
         var state = _standardStates.GetOrAdd(contextName,
@@ -232,6 +270,30 @@ public class DbContextLifeCycleTracker : IContextMetricsCollector
             DurationMs = durationMs
         });
     }
+
+
+    // ── IContextMetricsProvider ───────────────────────────────────────────
+
+    public PooledContextMetrics? GetPooledMetrics(string contextName) =>
+        _pooledStates.TryGetValue(contextName, out var s) ? s.Snapshot() : null;
+
+    public StandardContextMetrics? GetStandardMetrics(string contextName) =>
+        _standardStates.TryGetValue(contextName, out var s) ? s.Snapshot() : null;
+
+    public IReadOnlyDictionary<string, PooledContextMetrics> GetAllPooledMetrics() =>
+        _pooledStates.ToDictionary(kv => kv.Key, kv => kv.Value.Snapshot());
+
+    public IReadOnlyDictionary<string, StandardContextMetrics> GetAllStandardMetrics() =>
+        _standardStates.ToDictionary(kv => kv.Key, kv => kv.Value.Snapshot());
+
+    // ── Activity access (for query service) ──────────────────────────────
+
+    public IReadOnlyList<InstanceActivity> GetRecentActivity(string contextName, int take = 20) =>
+        _activityStore.GetRecent(contextName, take);
+
+    public IReadOnlyList<InstanceActivity> GetAllActivity(string contextName) =>
+        _activityStore.GetAll(contextName);
+
 
 
 
