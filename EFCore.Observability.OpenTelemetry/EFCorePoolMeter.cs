@@ -55,10 +55,10 @@ public sealed class EFCoreObservMeter : IDisposable
     private readonly ObservableCounter<long> _totalDisposals;
     private readonly ObservableGauge<long> _activeInUse;
 
-    public EFCoreObservMeter(IContextMetricsProvider provider)
+    public EFCoreObservMeter(IContextMetricsProvider provider , string meterName =  MeterName)
     {
         _provider = provider;
-        _meter = new Meter(MeterName, MeterVersion);
+        _meter = new Meter(meterName, MeterVersion);
 
 
         // ── DbContextPool ───────────────────────────────────────────────────────────────
