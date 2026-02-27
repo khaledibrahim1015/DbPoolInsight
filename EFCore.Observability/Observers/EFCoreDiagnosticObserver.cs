@@ -6,7 +6,6 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace EFCore.Observability.Observers;
 
