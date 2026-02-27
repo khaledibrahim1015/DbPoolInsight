@@ -24,14 +24,56 @@ public static class EFCoreMetricsInstrumentation
     {
         // Register the meter as a singleton so it lives for the application lifetime.
         builder.ConfigureServices(services =>
-            services.AddSingleton<EFCoreObservMeter>());
+            services.AddSingleton<EFCorePoolMeter>());
 
         // Tell OTel to collect from this meter by name.
-        builder.AddMeter(EFCoreObservMeter.MeterName);
+        builder.AddMeter(EFCorePoolMeter.MeterName);
 
         // Ensure the meter is constructed (and therefore subscribed) at startup.
-        builder.AddInstrumentation(sp => sp.GetRequiredService<EFCoreObservMeter>());
+        builder.AddInstrumentation(sp => sp.GetRequiredService<EFCorePoolMeter>());
 
         return builder;
     }
+    /// <summary>
+    /// Adds EF Core standard observability metrics to the OpenTelemetry pipeline.
+    ///
+    /// <code>
+    /// builder.Services.AddOpenTelemetry()
+    ///     .WithMetrics(m => m.AddEFCoreStandardInstrumentation());
+    /// </code>
+    /// </summary>
+    public static MeterProviderBuilder AddEFCoreStandardInstrumentation(
+    this MeterProviderBuilder builder)
+    {
+        // Register the meter as a singleton so it lives for the application lifetime.
+        builder.ConfigureServices(services =>
+            services.AddSingleton<EFCoreStandardMeter>());
+
+        // Tell OTel to collect from this meter by name.
+        builder.AddMeter(EFCoreStandardMeter.MeterName);
+
+        // Ensure the meter is constructed (and therefore subscribed) at startup.
+        builder.AddInstrumentation(sp => sp.GetRequiredService<EFCoreStandardMeter>());
+
+        return builder;
+    }
+
+
+    /// <summary>
+    /// Adds EF Core standard and pool observability metrics to the OpenTelemetry pipeline.
+    ///
+    /// <code>
+    /// builder.Services.AddOpenTelemetry()
+    ///     .WithMetrics(m => m.AddEFCoreInstrumentation() );
+    /// </code>
+    /// </summary>
+    public static MeterProviderBuilder AddEFCoreInstrumentation(
+    this MeterProviderBuilder builder)
+    {
+        builder.AddEFCorePoolInstrumentation();
+        builder.AddEFCoreStandardInstrumentation();
+        return builder;
+    }
+
+
 }
