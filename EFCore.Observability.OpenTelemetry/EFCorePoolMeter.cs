@@ -21,6 +21,8 @@ public sealed class EFCorePoolMeter : IDisposable
 
     private readonly Meter _meter;
     private readonly IContextMetricsProvider _provider;
+    private readonly ObservableGauge<long> _configuredMaxPoolSize;
+    private readonly ObservableGauge<long> _roomToGrow;
 
     // ── Observable gauges (polled by the metrics pipeline) ────────────────
     private readonly ObservableGauge<long> _physicalInPool;
@@ -28,6 +30,9 @@ public sealed class EFCorePoolMeter : IDisposable
     private readonly ObservableGauge<long> _activeRents;
     private readonly ObservableGauge<double> _poolUtilization;
     private readonly ObservableGauge<long> _leakedContexts;
+
+    private readonly ObservableGauge<double> _reuseRatio;
+    private readonly ObservableGauge<double> _returnRate;
 
     // ── Cumulative counters ───────────────────────────────────────────────
     private readonly ObservableCounter<long> _totalRents;
@@ -54,6 +59,22 @@ public sealed class EFCorePoolMeter : IDisposable
         // ── DbContextPool ───────────────────────────────────────────────────────────────
         // ── Gauges ────────────────────────────────────────────────────────
 
+         // ================================================================
+         // CONFIGURATION METRICS - Pool settings
+         // ================================================================
+          _configuredMaxPoolSize =  _meter.CreateObservableGauge(
+            "efcore.pool.max_size",
+            observeValues: () => ObservePooled(m => new Measurement<long>(m.MaxPoolSize, ContextTag(m))),
+            unit: "{instances}",
+            description: "Configured maximum pool size");
+
+        _roomToGrow = _meter.CreateObservableGauge(
+          "efcore.pool.room_to_grow",
+          observeValues: () => ObservePooled(m => new Measurement<long>(m.RoomToGrow, ContextTag(m))),
+          unit: "{instances}",
+          description: "Number of physical DbContext instances can be created in pool ");
+
+
         _physicalInPool = _meter.CreateObservableGauge(
             "efcore.pool.instances.physical",
             unit: "{instances}",
@@ -78,6 +99,19 @@ public sealed class EFCorePoolMeter : IDisposable
             description: "Pool utilization as a percentage of MaxPoolSize.",
             observeValues: () => ObservePooled(m => new Measurement<double>(m.PoolUtilization, ContextTag(m))));
 
+        // Active connection ratio (active / total)
+        _reuseRatio = _meter.CreateObservableGauge(
+            "efcore.pool.reuse.ratio",
+             observeValues: () => ObservePooled(m => new Measurement<double>(m.ReuseRatio, ContextTag(m))),
+            unit: "{reuse}",
+            description: "Average number of requests handled per physical instance.");
+
+        _returnRate = _meter.CreateObservableGauge(
+         "efcore.pool.reuse.ratio",
+          observeValues: () => ObservePooled(m => new Measurement<double>(m.ReturnRate, ContextTag(m))),
+         unit: "{%}",
+         description: "Percentage of rents that resulted in a clean return.");
+
         _leakedContexts = _meter.CreateObservableGauge(
             "efcore.pool.leaks",
             unit: "{contexts}",
@@ -101,6 +135,10 @@ public sealed class EFCorePoolMeter : IDisposable
             unit: "ms",
             description: "Maximum recorded rent duration in milliseconds.",
             observeValues: () => ObservePooled(m => new Measurement<double>(m.MaxRentDurationMs, ContextTag(m))));
+
+
+
+
 
         // ── Counters ──────────────────────────────────────────────────────
 
@@ -133,6 +171,8 @@ public sealed class EFCorePoolMeter : IDisposable
             unit: "{instances}",
             description: "Total physical DbContext instances ever disposed.",
             observeValues: () => ObservePooled(m => new Measurement<long>(m.PhysicalDisposals, ContextTag(m))));
+
+
 
 
 

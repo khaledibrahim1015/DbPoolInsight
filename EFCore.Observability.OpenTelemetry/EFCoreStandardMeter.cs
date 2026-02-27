@@ -44,7 +44,6 @@ public sealed class EFCoreStandardMeter : IDisposable
         _meter = new Meter(MeterName, MeterVersion);
 
 
-
         // ── Standard DbContext ───────────────────────────────────────────────────────────────
         _leakedStandardContexts = _meter.CreateObservableGauge(
             "efcore.Standard.leaks",
