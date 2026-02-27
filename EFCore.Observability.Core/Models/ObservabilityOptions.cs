@@ -13,6 +13,7 @@ public sealed class ObservabilityOptions
     /// </summary>
     public int MaxActivityHistoryPerContext { get; set; } = 500;
 
+    // Not Implemented Yet !
     /// <summary>
     /// Duration in milliseconds after which a rented context is considered a potential leak
     /// and a warning is emitted. Default: 30 000 ms (30 s).
@@ -38,4 +39,9 @@ public sealed class ObservabilityOptions
     /// Default: false (opt-in)
     /// </summary>
     public bool EnableOpenTelemetry { get; set; } = false;
+
+    /// <summary>
+    ///  By default this enabled tracking for standard (non-pooled) contexts as well, but this can be disabled via 
+    /// </summary>
+    public bool TrackStandardContexts { get; set; } = true;
 }

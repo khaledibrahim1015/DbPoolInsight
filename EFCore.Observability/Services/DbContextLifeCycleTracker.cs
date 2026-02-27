@@ -58,7 +58,7 @@ public class DbContextLifeCycleTracker : IContextMetricsCollector  , IContextMet
     public void OnContextInitialized(string contextName, Guid instanceId, int lease, bool isPooled)
     {
 
-        if (!isPooled)
+        if (!isPooled && _options.TrackStandardContexts)
             HandleStandardCreated(contextName, instanceId , lease );
 
         // Pooled: track physical creations by unique instance ID
@@ -207,6 +207,9 @@ public class DbContextLifeCycleTracker : IContextMetricsCollector  , IContextMet
     /// <inheritdoc/>
     public void OnStandardContextDisposed(string contextName, Guid instanceId)
     {
+        if(!_options.TrackStandardContexts)
+            return;
+
         if (!_standardStates.TryGetValue(contextName, out var state))
             return;
 
