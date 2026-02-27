@@ -1,5 +1,8 @@
 <Solution>
-  <Folder Name="/docs/" />
+  <Folder Name="/docs/">
+    <File Path="Efcore-observability-core-reference.md" />
+    <File Path="Efcore-observability-integration-guide.md" />
+  </Folder>
   <Folder Name="/samples/" />
   <Folder Name="/samples/EFCore.Observability.Sample/">
     <Project Path="EFCore.Observability.otel.apiv2/EFCore.Observability.otel.apiv2.csproj" Id="5138d056-b44e-48b7-8ecc-f449c7b9eba4" />
