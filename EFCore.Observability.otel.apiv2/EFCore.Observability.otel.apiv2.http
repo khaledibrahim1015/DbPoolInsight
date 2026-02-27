@@ -1,0 +1,6 @@
+@EFCore.Observability.otel.apiv2_HostAddress = http://localhost:5225
+
+GET {{EFCore.Observability.otel.apiv2_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

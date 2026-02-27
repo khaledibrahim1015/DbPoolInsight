@@ -2,6 +2,7 @@
   <Folder Name="/docs/" />
   <Folder Name="/samples/" />
   <Folder Name="/samples/EFCore.Observability.Sample/">
+    <Project Path="EFCore.Observability.otel.apiv2/EFCore.Observability.otel.apiv2.csproj" Id="5138d056-b44e-48b7-8ecc-f449c7b9eba4" />
     <Project Path="EFCore.Observability.Sample.APIv1/EFCore.Observability.Sample.APIv1.csproj" Id="80f8591a-7593-4abe-a59b-1b0cc5a5397e" />
   </Folder>
   <Folder Name="/src/" />
