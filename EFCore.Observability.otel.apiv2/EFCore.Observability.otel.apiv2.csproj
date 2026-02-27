@@ -9,10 +9,15 @@
   <ItemGroup>
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
 	  <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.0" />
+	  <PackageReference Include="OpenTelemetry.Exporter.Prometheus.AspNetCore" Version="1.15.0-beta.1" />
+	  <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.15.0" />
+
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\EFCore.Observability\EFCore.Observability.csproj" />
+	  <ProjectReference Include="..\EFCore.Observability.OpenTelemetry\EFCore.Observability.OpenTelemetry.csproj" />
+
+	  <ProjectReference Include="..\EFCore.Observability\EFCore.Observability.csproj" />
   </ItemGroup>
 
 </Project>

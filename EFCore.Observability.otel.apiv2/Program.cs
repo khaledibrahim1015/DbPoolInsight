@@ -1,8 +1,11 @@
 using EFCore.Observability.Extensions;
+using EFCore.Observability.OpenTelemetry;
 using EFCore.Observability.otel.apiv2.Data;
 using EFCore.Observability.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using OpenTelemetry.Metrics;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -32,6 +35,14 @@ builder.Services.AddDbContext<ReplicaDbContext>((sp, options) =>
 });
 
 
+// Install: EFCore.Observability.OpenTelemetry
+// OpenTelemetry.Extensions.Hosting
+// OpenTelemetry.Exporter.Prometheus.AspNetCore
+builder.Services.AddOpenTelemetry()
+    .WithMetrics(m => m
+        .AddEFCorePoolInstrumentation()
+        .AddEFCoreStandardInstrumentation()
+        .AddPrometheusExporter());  
 
 
 
@@ -64,6 +75,8 @@ app.UseAuthorization();
 app.MapControllers();
 
 
+// Expose metrics endpoint for Prometheus
+app.MapPrometheusScrapingEndpoint();
 /// <summary>
 /// GET /api/pooldiagnostics/metrics
 /// Get metrics for all tracked contexts
@@ -72,8 +85,6 @@ app.MapGet("/diagnostics/efcore/metrics", (DiagnosticsQueryService svc) =>
     svc.GetAllDetails());
 
 /////////////////// Sequential test endpoint //////////////////////////
-
-
 
 /// <summary>
 /// POST /api/pooldiagnostics/test/sequential
