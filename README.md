@@ -49,7 +49,11 @@ dotnet add package EFCore.Observability.OpenTelemetry
 dotnet add package OpenTelemetry.Extensions.Hosting
 dotnet add package OpenTelemetry.Exporter.Prometheus.AspNetCore
 ```
-
+--
+## Nuget Packages
+  - ([ EFCore.Observability](https://www.nuget.org/packages/EFCore.Observability))
+  - ([ EFCore.Observability.Core](https://www.nuget.org/packages/EFCore.Observability.Core))
+  - ([ EFCore.Observability.OpenTelemetry ](https://www.nuget.org/packages/EFCore.Observability.OpenTelemetry))
 ---
 
 ## 3. Quick Start (5 minutes)
