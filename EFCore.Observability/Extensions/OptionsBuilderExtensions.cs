@@ -40,7 +40,7 @@ public static class OptionsBuilderExtensions
 
         // Register pool size so utilization % can be computed
         if (collector is DbContextLifeCycleTracker tracker)
-            tracker.RegisterPoolSize(typeof(TContext).Name, poolSize);
+            tracker.RegisterPoolSize<TContext>(poolSize);
 
         // Inject the resettable tracking service into EF's internal DI
         ((IDbContextOptionsBuilderInfrastructure)optionsBuilder)

@@ -59,7 +59,10 @@ public class DbContextLifeCycleTracker : IContextMetricsCollector  , IContextMet
     {
 
         if (!isPooled && _options.TrackStandardContexts)
-            HandleStandardCreated(contextName, instanceId , lease );
+        {
+            HandleStandardCreated(contextName, instanceId, lease);
+            return;
+        }
 
         // Pooled: track physical creations by unique instance ID
         // For pooled contexts, DON'T increment TotalRents here
