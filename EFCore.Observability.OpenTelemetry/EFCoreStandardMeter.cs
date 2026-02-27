@@ -1,6 +1,10 @@
 ﻿
 
 
+using EFCore.Observability.Core.Abstractions;
+using EFCore.Observability.Core.Models;
+using System.Diagnostics.Metrics;
+
 /// <summary>
 /// Exposes EF Core standard metrics via <see cref="System.Diagnostics.Metrics.Meter"/>.
 /// These are automatically picked up by OpenTelemetry, Prometheus, Datadog, and any
@@ -34,7 +38,7 @@ public sealed class EFCoreStandardMeter : IDisposable
 
 
 
-    public EFCoreStandardMeter()
+    public EFCoreStandardMeter(IContextMetricsProvider provider)
     {
         _provider = provider;
         _meter = new Meter(MeterName, MeterVersion);
@@ -55,7 +59,7 @@ public sealed class EFCoreStandardMeter : IDisposable
           description: "Total standard DbContext instances ever created.",
           observeValues: () => ObserveStandard(m => new Measurement<long>(m.TotalCreations, ContextTag(m))));
 
-        _physicalDisposals = _meter.CreateObservableCounter(
+        _totalDisposals = _meter.CreateObservableCounter(
             "efcore.standard.physical_disposals.total",
             unit: "{instances}",
             description: "Total standard DbContext instances ever disposed.",
@@ -77,13 +81,13 @@ public sealed class EFCoreStandardMeter : IDisposable
             description: "Rolling average duration in milliseconds.",
             observeValues: () => ObserveStandard(m => new Measurement<double>(m.AvgLifetimeMs, ContextTag(m))));
 
-        _minRentDurationMs = _meter.CreateObservableGauge(
+        _minDurationMs = _meter.CreateObservableGauge(
           "efcore.standard.duration.min_ms",
           unit: "ms",
           description: "Minimum recorded duration in milliseconds.",
           observeValues: () => ObserveStandard(m => new Measurement<double>(m.MinLifetimeMs, ContextTag(m))));
 
-        _maxRentDurationMs = _meter.CreateObservableGauge(
+        _maxDurationMs = _meter.CreateObservableGauge(
             "efcore.standard.duration.max_ms",
             unit: "ms",
             description: "Maximum recorded duration in milliseconds.",
