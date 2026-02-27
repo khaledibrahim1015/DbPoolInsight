@@ -1,0 +1,26 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<TargetFrameworks>net8.0</TargetFrameworks>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<LangVersion>latest</LangVersion>
+		<RootNamespace>EFCore.Observability.OpenTelemetry</RootNamespace>
+		<AssemblyName>EFCore.Observability.OpenTelemetry</AssemblyName>
+		<PackageId>EFCore.Observability.OpenTelemetry</PackageId>
+		<Version>1.0.0</Version>
+		<Authors>Khaled ibrahim</Authors>
+		<Description>OpenTelemetry bridge for EFCore.Observability — exports EF Core pool health metrics via System.Diagnostics.Metrics.</Description>
+		<PackageTags>efcore;opentelemetry;otel;metrics;dbcontext;pool</PackageTags>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\EFCore.Observability.Core\EFCore.Observability.Core.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.0" />
+		<PackageReference Include="OpenTelemetry" Version="1.15.0" />
+		<PackageReference Include="OpenTelemetry.Api" Version="1.15.0" />
+	</ItemGroup>
+</Project>
