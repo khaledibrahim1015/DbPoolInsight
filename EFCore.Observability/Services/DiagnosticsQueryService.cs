@@ -39,6 +39,26 @@ public sealed class DiagnosticsQueryService
 
     // ── Shaped responses ──────────────────────────────────────────────────
 
+    /// <summary>
+    /// Returns a combined summary object suitable for a diagnostics endpoint.
+    /// </summary>
+
+    public object GetAllDetails() => new
+    {
+        Pooled = _tracker.GetAllPooledMetrics().Values
+                    .Select(m => new
+                    {
+                        Summary = BuildPooledSummary(m),
+                        Activity = _tracker.GetAllActivity(m.ContextName)
+                    }).ToList(),
+
+        Standard = _tracker.GetAllStandardMetrics().Values
+                .Select(m => new
+                {
+                    Summary = BuildStandardSummary(m),
+                    Activity = _tracker.GetAllActivity(m.ContextName)
+                }).ToList(),
+    };
 
 
     /// <summary>
