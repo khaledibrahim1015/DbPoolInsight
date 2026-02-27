@@ -301,6 +301,66 @@ builder.Services.AddOpenTelemetry()
             o.Headers = "Authorization=Bearer your-token";
         }));
 ```
+---
+### 3.9 OpenTelemetry Meters
+
+Two meters expose metrics to any OTel-compatible backend (Prometheus, Grafana, Datadog, etc.).
+
+#### `EFCorePoolMeter` — meter name: `EFCore.Pool`
+
+All instruments are **observable** (polled by the OTel SDK, not pushed). Each instrument iterates `IContextMetricsProvider.GetAllPooledMetrics()` and yields one `Measurement<T>` per context type, tagged with `db.context = "ContextTypeName"`.
+
+```csharp
+// Pattern for all instruments:
+_meter.CreateObservableGauge(
+    "efcore.pool.utilization",
+    observeValues: () => Observe(m => Measure(m.PoolUtilization, m)),
+    unit: "%",
+    description: "Pool utilization as a percentage of MaxPoolSize.");
+
+private IEnumerable<Measurement<T>> Observe<T>(Func<PooledContextMetrics, Measurement<T>> selector)
+{
+    foreach (var metrics in _provider.GetAllPooledMetrics().Values)
+        yield return selector(metrics);
+}
+```
+
+**Instruments exposed:**
+
+| Instrument | Type | Unit |
+|---|---|---|
+| `efcore.pool.max_size` | Gauge | `{instances}` |
+| `efcore.pool.room_to_grow` | Gauge | `{instances}` |
+| `efcore.pool.instances.physical` | Gauge | `{instances}` |
+| `efcore.pool.instances.available` | Gauge | `{instances}` |
+| `efcore.pool.rents.active` | Gauge | `{rents}` |
+| `efcore.pool.utilization` | Gauge | `%` |
+| `efcore.pool.reuse_ratio` | Gauge | `{instances}` |
+| `efcore.pool.return_rate` | Gauge | `%` |
+| `efcore.pool.leaks` | Gauge | `{contexts}` |
+| `efcore.pool.rent.duration.avg_ms` | Gauge | `ms` |
+| `efcore.pool.rent.duration.min_ms` | Gauge | `ms` |
+| `efcore.pool.rent.duration.max_ms` | Gauge | `ms` |
+| `efcore.pool.rents.total` | Counter | `{rents}` |
+| `efcore.pool.returns.total` | Counter | `{returns}` |
+| `efcore.pool.overflow_disposals.total` | Counter | `{disposals}` |
+| `efcore.pool.physical_creations.total` | Counter | `{instances}` |
+| `efcore.pool.physical_disposals.total` | Counter | `{instances}` |
+
+#### `EFCoreStandardMeter` — meter name: `EFCore.Standard`
+
+Same pattern for non-pooled contexts. Tag: `db.context`.
+
+| Instrument | Type |
+|---|---|
+| `efcore.standard.active` | Gauge |
+| `efcore.standard.leaks` | Gauge |
+| `efcore.standard.duration.avg_ms` | Gauge |
+| `efcore.standard.duration.min_ms` | Gauge |
+| `efcore.standard.duration.max_ms` | Gauge |
+| `efcore.standard.creations.total` | Counter |
+| `efcore.standard.disposals.total` | Counter |
+
 
 ---
 
