@@ -16,7 +16,7 @@ namespace EFCore.Observability.OpenTelemetry;
 /// </summary>
 public sealed class EFCoreObservMeter : IDisposable
 {
-    public const string MeterName = "EFCore.Pool";
+    public const string MeterName = "EFCore.observ";
     public const string MeterVersion = "1.0.0";
 
     private readonly Meter _meter;
