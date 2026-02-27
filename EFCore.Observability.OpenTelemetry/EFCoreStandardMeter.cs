@@ -1,100 +1,91 @@
-﻿
-
-
-using EFCore.Observability.Core.Abstractions;
+﻿using EFCore.Observability.Core.Abstractions;
 using EFCore.Observability.Core.Models;
 using System.Diagnostics.Metrics;
 
-/// <summary>
-/// Exposes EF Core standard metrics via <see cref="System.Diagnostics.Metrics.Meter"/>.
-/// These are automatically picked up by OpenTelemetry, Prometheus, Datadog, and any
-/// other collector that supports the .NET Metrics API.
-///
-/// Meter name: <c>EFCore.Standard</c>
-/// </summary>
 namespace EFCore.Observability.OpenTelemetry;
 
+/// <summary>
+/// Exposes EF Core standard (non-pooled) DbContext metrics via <see cref="System.Diagnostics.Metrics.Meter"/>.
+/// These are automatically picked up by OpenTelemetry, Prometheus, Datadog, and any
+/// other collector that supports the .NET Metrics API.
+/// </summary>
+/// <remarks>
+/// Meter name  : <c>EFCore.Standard</c><br/>
+/// Meter version: <c>1.0.0</c>
+/// </remarks>
 public sealed class EFCoreStandardMeter : IDisposable
 {
     public const string MeterName = "EFCore.Standard";
     public const string MeterVersion = "1.0.0";
 
+    // Only _meter needs to be retained; the Meter owns all instruments internally.
     private readonly Meter _meter;
     private readonly IContextMetricsProvider _provider;
 
-
-
-
-    // ── standard dbcontext metrics ────────────────
-
-    private readonly ObservableGauge<double> _avgDurationMs;
-    private readonly ObservableGauge<double> _maxDurationMs;
-    private readonly ObservableGauge<double> _minDurationMs;
-
-    private readonly ObservableGauge<long> _leakedStandardContexts;
-    private readonly ObservableCounter<long> _totalCreations;
-    private readonly ObservableCounter<long> _totalDisposals;
-    private readonly ObservableGauge<long> _activeInUse;
-
-
-
+    /// <summary>
+    /// Initialises the meter and registers all observable instruments.
+    /// </summary>
+    /// <param name="provider">Source of per-context standard metrics.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="provider"/> is <see langword="null"/>.</exception>
     public EFCoreStandardMeter(IContextMetricsProvider provider)
     {
+        ArgumentNullException.ThrowIfNull(provider);
+
         _provider = provider;
         _meter = new Meter(MeterName, MeterVersion);
 
-
-        // ── Standard DbContext ───────────────────────────────────────────────────────────────
-        _leakedStandardContexts = _meter.CreateObservableGauge(
-            "efcore.Standard.leaks",
-            unit: "{contexts}",
-            description: "DbContext instances that were created but never disposed (potential leaks).",
-            observeValues: () => ObserveStandard(m => new Measurement<long>(m.PotentialLeaks, ContextTag(m))));
-
-
-        _totalCreations = _meter.CreateObservableCounter(
-          "efcore.standard.physical_creations.total",
-          unit: "{instances}",
-          description: "Total standard DbContext instances ever created.",
-          observeValues: () => ObserveStandard(m => new Measurement<long>(m.TotalCreations, ContextTag(m))));
-
-        _totalDisposals = _meter.CreateObservableCounter(
-            "efcore.standard.physical_disposals.total",
-            unit: "{instances}",
-            description: "Total standard DbContext instances ever disposed.",
-            observeValues: () => ObserveStandard(m => new Measurement<long>(m.TotalDisposals, ContextTag(m))));
-
-
-        _activeInUse = _meter.CreateObservableGauge(
+        // ── Current state ─────────────────────────────────────────────────
+        _meter.CreateObservableGauge(
             "efcore.standard.active",
-            unit: "{rents}",
-            description: "DbContext instances currently alive (created but not yet disposed).",
-            observeValues: () => ObserveStandard(m => new Measurement<long>(m.ActiveContexts, ContextTag(m))));
+            observeValues: () => Observe(m => Measure(m.ActiveContexts, m)),
+            unit: "{instances}",
+            description: "DbContext instances currently alive (created but not yet disposed).");
 
+        _meter.CreateObservableGauge(
+            "efcore.standard.leaks",
+            observeValues: () => Observe(m => Measure(m.PotentialLeaks, m)),
+            unit: "{contexts}",
+            description: "DbContext instances that were created but never disposed (potential leaks).");
 
-
-
-        _avgDurationMs = _meter.CreateObservableGauge(
+        // ── Lifetime duration (rolling window gauges) ─────────────────────
+        _meter.CreateObservableGauge(
             "efcore.standard.duration.avg_ms",
+            observeValues: () => Observe(m => Measure(m.AvgLifetimeMs, m)),
             unit: "ms",
-            description: "Rolling average duration in milliseconds.",
-            observeValues: () => ObserveStandard(m => new Measurement<double>(m.AvgLifetimeMs, ContextTag(m))));
+            description: "Rolling average DbContext lifetime in milliseconds.");
 
-        _minDurationMs = _meter.CreateObservableGauge(
-          "efcore.standard.duration.min_ms",
-          unit: "ms",
-          description: "Minimum recorded duration in milliseconds.",
-          observeValues: () => ObserveStandard(m => new Measurement<double>(m.MinLifetimeMs, ContextTag(m))));
+        _meter.CreateObservableGauge(
+            "efcore.standard.duration.min_ms",
+            observeValues: () => Observe(m => Measure(m.MinLifetimeMs, m)),
+            unit: "ms",
+            description: "Minimum recorded DbContext lifetime in milliseconds.");
 
-        _maxDurationMs = _meter.CreateObservableGauge(
+        _meter.CreateObservableGauge(
             "efcore.standard.duration.max_ms",
+            observeValues: () => Observe(m => Measure(m.MaxLifetimeMs, m)),
             unit: "ms",
-            description: "Maximum recorded duration in milliseconds.",
-            observeValues: () => ObserveStandard(m => new Measurement<double>(m.MaxLifetimeMs, ContextTag(m))));
+            description: "Maximum recorded DbContext lifetime in milliseconds.");
 
+        // ── Cumulative counters ───────────────────────────────────────────
+        _meter.CreateObservableCounter(
+            "efcore.standard.creations.total",
+            observeValues: () => Observe(m => Measure(m.TotalCreations, m)),
+            unit: "{instances}",
+            description: "Total standard DbContext instances ever created.");
 
+        _meter.CreateObservableCounter(
+            "efcore.standard.disposals.total",
+            observeValues: () => Observe(m => Measure(m.TotalDisposals, m)),
+            unit: "{instances}",
+            description: "Total standard DbContext instances ever disposed.");
     }
-    private IEnumerable<Measurement<T>> ObserveStandard<T>(
+
+    // ── Helpers ───────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Projects each standard context's metrics into an observable measurement sequence.
+    /// </summary>
+    private IEnumerable<Measurement<T>> Observe<T>(
         Func<StandardContextMetrics, Measurement<T>> selector)
         where T : struct
     {
@@ -102,10 +93,13 @@ public sealed class EFCoreStandardMeter : IDisposable
             yield return selector(metrics);
     }
 
-    private static KeyValuePair<string, object?>[] ContextTag(StandardContextMetrics m) =>
-        [ new KeyValuePair<string, object?>("db.context", m.ContextName)];
+    /// <summary>
+    /// Creates a <see cref="Measurement{T}"/> tagged with the context name.
+    /// </summary>
+    private static Measurement<T> Measure<T>(T value, StandardContextMetrics m)
+        where T : struct =>
+        new(value, new KeyValuePair<string, object?>("db.context", m.ContextName));
 
-
+    /// <inheritdoc/>
     public void Dispose() => _meter.Dispose();
-
 }
