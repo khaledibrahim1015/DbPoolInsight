@@ -1,4 +1,4 @@
-# EFCore.Observability — Integration & Setup Guide
+# EFCore.Observability 
 
 > **Version:** 1.0 · **Audience:** Developers integrating the library into ASP.NET Core applications
 
