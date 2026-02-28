@@ -15,10 +15,7 @@
   <Folder Name="/src/EFCore.Observability.OpenTelemetry/">
     <Project Path="EFCore.Observability.OpenTelemetry/EFCore.Observability.OpenTelemetry.csproj" Id="62e85ec0-f7e1-40c5-b4a9-7e0917f41983" />
   </Folder>
-  <Folder Name="/src/EFCore.Observability.Prometheus/" />
   <Folder Name="/src/EFCore.Observability/">
     <Project Path="EFCore.Observability/EFCore.Observability.csproj" Id="e742d8c0-2d0e-4620-892b-958025584530" />
   </Folder>
-  <Folder Name="/tests/" />
-  <Folder Name="/tests/EFCore.Observability.Tests/" />
 </Solution>
