@@ -25,13 +25,37 @@ services:
       - observability
     entrypoint: ["/bin/bash", "/entrypoint.sh"] 
     healthcheck:
-      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "${DB_PASSWORD:-StrongPassword123!!}", "-C", "-Q", "SELECT 1", "||", "exit", "1"]
-      interval: 10s
-      timeout: 5s
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P '${DB_PASSWORD:-StrongPassword123!!}' -C -Q 'SELECT 1' || exit 1"]
+      interval: 30s
+      timeout: 10s
       retries: 10
-      start_period: 30s
+      start_period: 60s
 
 
+    # ─── Application ────────────────────────────────────────────────────────────
+  efcore-api:
+    build:
+      context: ../../
+      dockerfile: Deployments/Docker/Dockerfile.efcoreapi
+      target: final
+    container_name: efcore-api
+    environment:
+      
+      - ASPNETCORE_ENVIRONMENT=Production
+    ports:
+      - "8080:8080"
+    depends_on:
+      sqlserverdb:
+        condition: service_healthy
+    networks:
+      - observability
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
 
 
