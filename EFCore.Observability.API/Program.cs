@@ -1,4 +1,5 @@
 using EFCore.Observability.API.Data;
+using EFCore.Observability.API.Utils;
 using EFCore.Observability.Extensions;
 using EFCore.Observability.OpenTelemetry;
 using EFCore.Observability.Services;
@@ -57,7 +58,16 @@ builder.Services.AddOpenTelemetry()
 
 
 
-
+builder.Services.AddHealthChecks()
+    .Add(new HealthCheckRegistration(
+        "efcore-pool",
+        sp =>
+        {
+            var query = sp.GetRequiredService<DiagnosticsQueryService>();
+            return new EFCorePoolHealthCheck(query);
+        },
+        HealthStatus.Degraded,
+        tags: ["database", "pool"]));
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -81,7 +91,7 @@ app.UseAuthorization();
 app.MapControllers();
 // Expose metrics endpoint for Prometheus
 app.MapPrometheusScrapingEndpoint();
-
+app.MapHealthChecks("/health");
 
 
 
