@@ -4,12 +4,20 @@
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>40dc40b2-efc8-49b4-b5a0-4e7bf9ecc7db</UserSecretsId>
+    <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+    <PackageReference Include="EFCore.Observability" Version="1.0.0" />
+    <PackageReference Include="EFCore.Observability.OpenTelemetry" Version="1.0.0" />
+    <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.23.0" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.15.0" />
+	  <PackageReference Include="OpenTelemetry.Exporter.Prometheus.AspNetCore" Version="1.15.0-beta.1" />
+
+	  <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
 	  <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.0" />
-	  <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.0" />
+	  <!--<PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.0" />-->
 	  <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.0" />
 
   </ItemGroup>
