@@ -1,0 +1,69 @@
+version: '3.8'
+
+networks:
+  observability:
+    driver: bridge
+
+volumes:
+  sqlserverdata:
+
+services:
+  sqlserverdb:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: sqlserver
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=${DB_PASSWORD:-StrongPassword123!!}
+      - MSSQL_PID=Express
+    ports:
+      - "5055:1433"
+    volumes:
+      - sqlserverdata:/var/opt/mssql
+      - ./sql/init.sql:/init.sql           # Mount init script
+      - ./sql/entrypoint.sh:/entrypoint.sh # Mount entrypoint
+    networks:
+      - observability
+    entrypoint: ["/bin/bash", "/entrypoint.sh"] 
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "${DB_PASSWORD:-StrongPassword123!!}", "-C", "-Q", "SELECT 1", "||", "exit", "1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+
+
+
+
+
+# 🛠️ SQL Server Docker Troubleshooting Reference
+# 1. Status & Logs
+# Check if the container is running and if the initialization script finished.
+#     Check Status: docker ps (Look for (healthy))
+#     View Logs: docker logs sqlserver
+#     Follow Logs: docker logs -f sqlserver
+
+# 2. External Connectivity (SSMS / Azure Data Studio)
+# If you cannot connect from your host machine, verify these settings:
+#     Server: localhost,5055
+#     Authentication: SQL Server Authentication
+#     Login: sa
+#     Password: ${DB_PASSWORD} (Default: StrongPassword123!!)
+#     Encryption: Set Trust Server Certificate to True (Required for SQL 2022).
+
+# 3. Internal Verification (CLI)
+# Run these commands directly in your terminal to query the database inside the container.
+#     Note: We use /opt/mssql-tools18/ and the -C flag to bypass SSL certificate restrictions.
+
+# Goal	Command
+# Check Version	docker exec -it sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "StrongPassword123!!" -C -Q "SELECT @@VERSION"
+# List Databases	docker exec -it sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "StrongPassword123!!" -C -Q "SELECT name FROM sys.databases"
+# Check 'khaled' User	docker exec -it sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "StrongPassword123!!" -C -Q "SELECT name FROM sys.server_principals WHERE name = 'khaled'"
+
+# 4. Common Fixes
+#     Permission Denied: If entrypoint.sh fails, run chmod +x sql/entrypoint.sh on your host.
+#     Fresh Start: To wipe the database and start over:
+#     Bash
+#     docker-compose down -v
+#     docker-compose up -d
+#     Password Change: Update the SA_PASSWORD in docker-compose.yml, then run docker-compose up -d to recreate the container.
