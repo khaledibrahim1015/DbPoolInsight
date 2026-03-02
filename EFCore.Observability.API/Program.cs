@@ -1,11 +1,19 @@
 using EFCore.Observability.API.Data;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 
-
+var str = new SqlConnectionStringBuilder(builder.Configuration.GetConnectionString("TMS_Conn"))
+{
+    ConnectTimeout = 30,
+    Encrypt = true,
+    TrustServerCertificate = false,
+    ApplicationName = "EFCore.Observability.API"
+};
+Console.WriteLine($"datasource  : {str.DataSource} ");
 builder.Services.AddDbContext<PrimaryDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("TMS_Conn")));
 builder.Services.AddDbContext<ReplicaDbContext>(options =>
