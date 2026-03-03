@@ -1,0 +1,85 @@
+# monitoring/prometheus/prometheus.yml
+global:
+  # How often to scrape targets. The EFCore metrics are gauges updated
+  # in real-time, so 15s gives good granularity without excessive load.
+  scrape_interval: 15s
+
+scrape_configs:
+  # Prometheus scrapes its own metrics — useful for monitoring the monitor
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+
+  - job_name: 'efcore-api'
+      # Override global interval for this job if needed
+    scrape_interval: 15s
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['efcore-api:8080']
+        labels:
+          app: 'efcore-observability'
+          service: 'primary-api'
+
+
+
+
+
+
+
+
+
+# # monitoring/prometheus/prometheus.yml
+# global:
+#   # How often to scrape targets. The EFCore metrics are gauges updated
+#   # in real-time, so 15s gives good granularity without excessive load.
+#   scrape_interval: 15s
+  
+#   # # How often to evaluate alerting rules
+#   # evaluation_interval: 15s
+  
+#   # # Labels added to all time series scraped from this Prometheus instance.
+#   # # Critical for HA setups where you need to identify which replica produced data.
+#   # external_labels:
+#   #   environment: 'production'
+#   #   region: 'us-east-1'
+
+# # # Alertmanager configuration
+# # alerting:
+# #   alertmanagers:
+# #     - static_configs:
+# #         - targets: ['alertmanager:9093']
+
+# # # Load alerting rules
+# # rule_files:
+# #   - "rules/efcore_alerts.yml"
+
+# scrape_configs:
+#   # Prometheus scrapes its own metrics — useful for monitoring the monitor
+#   - job_name: 'prometheus'
+#     static_configs:
+#       - targets: ['localhost:9090']
+
+#   # Primary job for the EFCore application
+#   - job_name: 'efcore-api'
+#     # Override global interval for this job if needed
+#     scrape_interval: 15s
+    
+#     # The app exposes metrics at a custom path, not the default /metrics
+#     metrics_path: '/diagnostics/efcore/metrics'
+    
+#     static_configs:
+#       - targets: ['efcore-api:8080']
+#         # Labels added to all series from this target
+#         labels:
+#           app: 'efcore-observability'
+#           service: 'primary-api'
+
+#   # If you add a /metrics endpoint for ASP.NET runtime metrics via
+#   # prometheus-net or OpenTelemetry, add a separate job for it
+#   - job_name: 'efcore-api-dotnet-runtime'
+#     metrics_path: '/metrics'
+#     static_configs:
+#       - targets: ['efcore-api:8081']
+#         labels:
+#           app: 'efcore-observability'

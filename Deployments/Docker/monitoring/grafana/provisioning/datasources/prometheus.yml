@@ -1,0 +1,30 @@
+# monitoring/grafana/provisioning/datasources/prometheus.yml
+apiVersion: 1
+datasources:
+  - name: Prometheus                # Display name in Grafana
+    type: prometheus                 # Data source type
+    uid: prometheus        # ←  fixed UID
+    access: proxy                    # 'proxy' (server-side) or 'direct' (browser)
+    url: http://Prometheus:9090       # Prometheus server URL
+    isDefault: true                  # Make this the default data source
+    editable: true                   # Allow editing from Grafana UI
+
+    # Optional authentication
+    basicAuth: false                 # Set to true if Prometheus requires basic auth
+    # basicAuthUser: admin
+    # secureJsonData:
+    #   basicAuthPassword: your_password
+
+    # Optional custom HTTP headers
+    # jsonData:
+    #   httpHeaderName1: "X-Scope-OrgID"
+    # secureJsonData:
+    #   httpHeaderValue1: "my-org"
+
+    # Time interval settings
+    jsonData:
+      # Match Prometheus scrape interval for accurate step calculations
+      timeInterval: "15s"            # Minimum scrape interval
+      queryTimeout: 60s               # Query timeout
+      httpMethod: POST                # Use POST for queries (optional)
+
