@@ -24,7 +24,7 @@ datasources:
     # Time interval settings
     jsonData:
       # Match Prometheus scrape interval for accurate step calculations
-      timeInterval: "15s"            # Minimum scrape interval
+      timeInterval: "5s"            # Minimum scrape interval
       queryTimeout: 60s               # Query timeout
       httpMethod: POST                # Use POST for queries (optional)
 

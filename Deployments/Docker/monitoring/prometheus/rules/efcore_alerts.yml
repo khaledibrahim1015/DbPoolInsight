@@ -1,0 +1,67 @@
+# monitoring/prometheus/rules/efcore_alerts.yml
+groups:
+  - name: efcore_pool
+    interval: 5s
+    rules:
+      # Alert when pool is nearly exhausted — this is a critical leading indicator
+      # of connection starvation. At 90% utilization, you're 10% from requests
+      # starting to queue or fail.
+      - alert: EFCorePoolHighUtilization
+        expr: efcore_pool_utilization_percent > 90
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "EFCore pool utilization critical on {{ $labels.db_context }}"
+          description: >
+            Pool utilization is {{ $value }}% for {{ $labels.db_context }}.
+            Consider increasing pool size or investigating slow queries.
+
+      # Context leaks are serious — they indicate a coding bug where a DbContext
+      # is obtained but Dispose() is never called, eventually exhausting the pool.
+      - alert: EFCoreContextLeak
+        expr: efcore_pool_leaks > 0 or efcore_standard_leaks > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "DbContext leak detected in {{ $labels.db_context }}"
+          description: "{{ $value }} context(s) rented but never returned. Check for missing `using` statements or exception paths that skip disposal."
+
+
+
+
+
+      # Overflow disposals mean contexts are being created and immediately thrown away
+      # because the pool is full. This is expensive — context creation involves
+      # connection setup, model validation, etc.
+
+           # Warning: Overflow disposals spiking
+      - alert: EFCorePoolOverflowing
+        expr: rate(efcore_pool_overflow_disposals_total[5m]) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Pool overflow for {{ $labels.db_context }}"
+          description: "Contexts being disposed due to pool overflow. Increase pool size or reduce concurrency."
+
+
+      # High average rent duration suggests slow queries or long-held transactions
+      - alert: EFCoreSlowContextRent
+        expr: efcore_pool_rent_duration_avg_ms_milliseconds > 2000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Slow DbContext rent duration: {{ $value }}ms"
+
+        # Warning: Return rate dropped
+      - alert: EFCoreReturnRateLow
+        expr: efcore_pool_return_rate_percent < 95
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low pool return rate for {{ $labels.db_context }}"
+          description: "Return rate is {{ $value }}%. Expected 100%. Investigate disposal patterns."

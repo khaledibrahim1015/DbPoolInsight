@@ -2,7 +2,20 @@
 global:
   # How often to scrape targets. The EFCore metrics are gauges updated
   # in real-time, so 15s gives good granularity without excessive load.
-  scrape_interval: 15s
+  scrape_interval: 5s
+
+
+
+  # Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+# Load alerting rules
+rule_files:
+  - "rules/efcore_alerts.yml"
+
 
 scrape_configs:
   # Prometheus scrapes its own metrics — useful for monitoring the monitor
@@ -13,7 +26,7 @@ scrape_configs:
 
   - job_name: 'efcore-api'
       # Override global interval for this job if needed
-    scrape_interval: 15s
+    scrape_interval: 5s
     metrics_path: '/metrics'
     static_configs:
       - targets: ['efcore-api:8080']

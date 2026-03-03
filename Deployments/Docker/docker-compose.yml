@@ -66,6 +66,7 @@ services:
     container_name: prometheus
     volumes:
       - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/rules:/etc/prometheus/rules:ro
       - prometheus_data:/prometheus
     ports:
       - "9090:9090"
@@ -96,19 +97,19 @@ services:
     restart: unless-stopped
 
       # ─── Grafana ────────────────────────────────────────────────────────────────
-  k6:
-    image: grafana/k6:latest
-    container_name: k6
-    volumes:
-      - ./monitoring/k6//loadtest.js:/scripts/loadtest.js
-    command: run /scripts/loadtest.js
-    networks:
-      - observability
-    depends_on:
-      efcore-api:
-        condition: service_healthy
-    # profiles:
-    #   - testing
+  # k6:
+  #   image: grafana/k6:latest
+  #   container_name: k6
+  #   volumes:
+  #     - ./monitoring/k6//loadtest.js:/scripts/loadtest.js
+  #   command: run /scripts/loadtest.js
+  #   networks:
+  #     - observability
+  #   depends_on:
+  #     efcore-api:
+  #       condition: service_healthy
+  #   # profiles:
+  #   #   - testing
 
 
 
