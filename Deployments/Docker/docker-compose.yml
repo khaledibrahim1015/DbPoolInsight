@@ -5,7 +5,9 @@ networks:
     driver: bridge
 
 volumes:
-  sqlserverdata:
+  prometheus_data:
+  grafana_data:
+  sqlserver_data:
 
 services:
   sqlserverdb:
@@ -18,7 +20,7 @@ services:
     ports:
       - "5055:1433"
     volumes:
-      - sqlserverdata:/var/opt/mssql
+      - sqlserver_data:/var/opt/mssql
       - ./sql/init.sql:/init.sql           # Mount init script
       - ./sql/entrypoint.sh:/entrypoint.sh # Mount entrypoint
     networks:
@@ -57,6 +59,117 @@ services:
       retries: 3
       start_period: 40s
 
+
+  # ─── Prometheus ─────────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: prometheus
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - observability
+    restart: unless-stopped
+
+  # ─── Grafana ────────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      # Provision datasources and dashboards automatically
+      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - observability
+    restart: unless-stopped
+
+      # ─── Grafana ────────────────────────────────────────────────────────────────
+  k6:
+    image: grafana/k6:latest
+    container_name: k6
+    volumes:
+      - ./monitoring/k6//loadtest.js:/scripts/loadtest.js
+    command: run /scripts/loadtest.js
+    networks:
+      - observability
+    depends_on:
+      efcore-api:
+        condition: service_healthy
+    # profiles:
+    #   - testing
+
+
+
+
+
+# The profiles: testing means k6 won't start with normal docker-compose up -d — only when you explicitly run it.
+
+
+
+
+# This mounts the entire dashboards folder from your host into Grafana's container. So any .json file you drop in Deployments/Docker/monitoring/grafana/dashboards/ — including efcore-dashboard.json — will automatically appear at /var/lib/grafana/dashboards/efcore-dashboard.json inside the container.
+# And your provisioning config in efcore.yml tells Grafana to scan exactly that path:
+# yamloptions:
+#   path: /var/lib/grafana/dashboards
+# ```
+
+# So the full chain is:
+# ```
+# Your host file:
+#   Deployments/Docker/monitoring/grafana/dashboards/efcore-dashboard.json
+#         ↓  (docker volume mount)
+# Inside container:
+#   /var/lib/grafana/dashboards/efcore-dashboard.json
+#         ↓  (Grafana provisioner reads this directory every 30s)
+# Grafana UI:
+#   Dashboard auto-appears under "EFCore Dashboards"
+
+
+# grafana:
+#   volumes:
+#     - grafana_data:/var/lib/grafana                              # named volume (persists Grafana DB, plugins, etc.)
+#     - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro   # bind mount
+#     - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro   # bind mount
+# ```
+
+# The `./` is **relative to where your `docker-compose.yml` lives**, which is:
+# ```
+# Deployments/Docker/docker-compose.yml
+# ```
+
+# So the resolved absolute paths on your host are:
+
+# | docker-compose path | Absolute host path | Container path |
+# |---|---|---|
+# | `./monitoring/grafana/provisioning` | `Deployments/Docker/monitoring/grafana/provisioning` | `/etc/grafana/provisioning` |
+# | `./monitoring/grafana/dashboards` | `Deployments/Docker/monitoring/grafana/dashboards` | `/var/lib/grafana/dashboards` |
+
+# So your final folder structure should look like this:
+# ```
+# Deployments/
+# └── Docker/
+#     ├── docker-compose.yml
+#     └── monitoring/
+#         └── grafana/
+#             ├── provisioning/
+#             │   ├── datasources/
+#             │   │   └── prometheus.yml
+#             │   └── dashboards/
+#             │       └── efcore.yml
+#             └── dashboards/
+#                 └── efcore-dashboard.json   ← dashboard goes here
 
 
 
