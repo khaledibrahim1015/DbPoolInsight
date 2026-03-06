@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sqlserver-data
+  namespace: dbpoolinsight
+  labels:
+    app.kubernetes.io/part-of: dbpoolinsight
+    app.kubernetes.io/component: sqlserver
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: standard
+  # storageClassName: ""   ← uncomment and set for specific storage class
+  #                          e.g. "managed-premium" on AKS, "gp2" on EKS

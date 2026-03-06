@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: sqlserverdb   # ← DNS name used in connection strings: Server=sqlserverdb
+  namespace: dbpoolinsight
+  labels:
+    app: sqlserverdb
+    app.kubernetes.io/part-of: dbpoolinsight
+    app.kubernetes.io/component: sqlserver
+spec:
+  type: ClusterIP     # Internal only — not exposed outside the cluster
+  selector:
+    app: sqlserverdb
+  ports:
+    - name: mssql
+      port: 1433
+      targetPort: 1433
+      protocol: TCP

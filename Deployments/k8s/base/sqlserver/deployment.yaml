@@ -98,7 +98,9 @@ spec:
           mountPath: /scripts
           readOnly: false  # ConfigMap is read-only, but we need write permissions for the entrypoint script to execute properly (e.g. for logging)
 
-
+       # Persistent data directory
+        - name: sqlserver-data
+          mountPath: /var/opt/mssql
     volumes:
       - name: init-scripts
         configMap:
@@ -107,4 +109,7 @@ spec:
          # This also allows us to add more scripts in the future without changing the Deployment
          # default mode is 0644 will make the scripts readable but not executable, so we set it to 0755 to allow execution of entrypoint.sh
          defaultMode: 0755
-  
+      
+      - name: sqlserver-data
+        persistentVolumeClaim:
+          claimName: sqlserver-data
