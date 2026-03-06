@@ -34,7 +34,16 @@ spec:
        
        # override default command to run our entrypoint script (which starts SQL Server and runs init.sql)
        command: ["/bin/bash", "/scripts/entrypoint.sh"]
-
+       env:
+        - name: ACCEPT_EULA
+          value: "Y"
+        - name: MSSQL_PID
+          value: "Express"
+        - name: SA_PASSWORD
+          valueFrom:
+            secretKeyRef: 
+             name: dbpoolinsight-secrets
+             key: SA_PASSWORD
 
 
 
