@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sqlserverdb
+  namespace: dbpoolinsight
+  labels:
+    app: sqlserverdb
+    app.kubernetes.io/part-of: dbpoolinsight
+    app.kubernetes.io/component: sqlserver
+spec:
+      # SQL Server Express = single instance only (no clustering support)
+ replicas: 1
+ selector:
+   matchLabels:
+     app: sqlserverdb
+ strategy:
+    # Recreate prevents two instances fighting over the PVC
+   type: Recreate
+
+  template:
+   metadata:
+     labels:
+       app: sqlserverdb
+       app.kubernetes.io/part-of: dbpoolinsight
+   
+   spec:
+    securityContext:
+      fsGroup: 10001 # SQL Server runs as non-root with this GID # mssql group — required for volume ownership
+
+    containers:
+     - name: sqlserver
+       image: mcr.microsoft.com/mssql/server:2022-latest
+       imagePullPolicy: IfNotPresent
+       
+       # override default command to run our entrypoint script (which starts SQL Server and runs init.sql)
+       command: ["/bin/bash", "/scripts/entrypoint.sh"]
+
+
+
+
+       # ── Volume mounts ─────────────────────────────────────────────────
+       volumeMounts:
+        # Mount the entire ConfigMap as a directory at /scripts, so both entrypoint.sh and init.sql are available there
+        - name: init-scripts
+          mountPath: /scripts
+          readOnly: false  # ConfigMap is read-only, but we need write permissions for the entrypoint script to execute properly (e.g. for logging)
+
+
+
+
+
+
+   volumes:
+    - name: init-scripts
+      configMap:
+       name: sqlserver-init
+       # Mount the entire ConfigMap as a directory at /scripts, so both entrypoint.sh and init.sql are available there
+       # This also allows us to add more scripts in the future without changing the Deployment
+       # default mode is 0644 will make the scripts readable but not executable, so we set it to 0755 to allow execution of entrypoint.sh
+       defaultMode: 0755
+  
