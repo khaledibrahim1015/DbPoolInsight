@@ -31,7 +31,11 @@ spec:
      - name: sqlserver
        image: mcr.microsoft.com/mssql/server:2022-latest
        imagePullPolicy: IfNotPresent
-       
+       ports:
+        - name: mssql
+          containerPort: 1433
+          protocol: TCP
+
        # override default command to run our entrypoint script (which starts SQL Server and runs init.sql)
        command: ["/bin/bash", "/scripts/entrypoint.sh"]
        env:
@@ -45,6 +49,46 @@ spec:
              name: dbpoolinsight-secrets
              key: SA_PASSWORD
 
+    
+          # ── Health probes ─────────────────────────────────────────────────
+          # readinessProbe: gates traffic — pod won't receive connections until ready
+       readinessProbe:
+        exec:
+          command:
+          - /bin/bash
+          - -c
+          - >
+            /opt/mssql-tools18/bin/sqlcmd
+            -S localhost -U sa -P "$SA_PASSWORD" -C
+            -Q "SELECT 1" > /dev/null 2>&1
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 10
+
+          # livenessProbe: restarts the pod if SQL Server crashes
+       livenessProbe:
+       exec:
+         command:
+         - /bin/bash
+         - -c
+         - >
+           /opt/mssql-tools18/bin/sqlcmd
+           -S localhost -U sa -P "$SA_PASSWORD" -C
+           -Q "SELECT 1" > /dev/null 2>&1
+         initialDelaySeconds: 60
+         periodSeconds: 20
+         timeoutSeconds: 5
+         failureThreshold: 3
+
+          # ── Resources ─────────────────────────────────────────────────────
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
 
 
        # ── Volume mounts ─────────────────────────────────────────────────
@@ -55,16 +99,12 @@ spec:
           readOnly: false  # ConfigMap is read-only, but we need write permissions for the entrypoint script to execute properly (e.g. for logging)
 
 
-
-
-
-
-   volumes:
-    - name: init-scripts
-      configMap:
-       name: sqlserver-init
-       # Mount the entire ConfigMap as a directory at /scripts, so both entrypoint.sh and init.sql are available there
-       # This also allows us to add more scripts in the future without changing the Deployment
-       # default mode is 0644 will make the scripts readable but not executable, so we set it to 0755 to allow execution of entrypoint.sh
-       defaultMode: 0755
+    volumes:
+      - name: init-scripts
+        configMap:
+         name: sqlserver-init
+         # Mount the entire ConfigMap as a directory at /scripts, so both entrypoint.sh and init.sql are available there
+         # This also allows us to add more scripts in the future without changing the Deployment
+         # default mode is 0644 will make the scripts readable but not executable, so we set it to 0755 to allow execution of entrypoint.sh
+         defaultMode: 0755
   
