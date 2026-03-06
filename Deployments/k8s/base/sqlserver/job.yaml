@@ -3,6 +3,9 @@ kind: Job
 metadata:
   name: dbpoolinsight-init-job
   namespace: dbpoolinsight
+  labels:
+    app.kubernetes.io/part-of: dbpoolinsight
+    app.kubernetes.io/component: sqlserver
 spec:
   backoffLimit: 5
   template:
