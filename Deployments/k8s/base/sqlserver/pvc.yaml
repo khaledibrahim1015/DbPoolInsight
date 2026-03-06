@@ -11,7 +11,7 @@ spec:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 5Gi
+      storage: 1Gi
   storageClassName: standard
   # storageClassName: ""   ← uncomment and set for specific storage class
   #                          e.g. "managed-premium" on AKS, "gp2" on EKS

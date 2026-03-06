@@ -1,0 +1,60 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: dbpoolinsight-init-job
+  namespace: dbpoolinsight
+spec:
+  backoffLimit: 5
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: sqlcmd
+        image: mcr.microsoft.com/mssql-tools
+        env:
+        - name: SA_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: dbpoolinsight-secrets
+              key: SA_PASSWORD
+        command: ["/bin/bash", "-c"]
+        args:
+          - |
+            echo "Phase 1 — waiting for TCP port to open..."
+            for i in {1..60}; do
+              if /opt/mssql-tools/bin/sqlcmd \
+                  -S sqlserverdb -U sa -P "$SA_PASSWORD" -C -l 2 \
+                  -Q "SELECT 1" &>/dev/null; then
+                echo "Port open at attempt $i"
+                break
+              fi
+              echo "TCP attempt $i/60..."
+              sleep 5
+            done
+
+            echo "Phase 2 — waiting for full readiness (system DBs upgraded)..."
+            for i in {1..60}; do
+              if /opt/mssql-tools/bin/sqlcmd \
+                  -S sqlserverdb -U sa -P "$SA_PASSWORD" -C -l 5 \
+                  -Q "SELECT name FROM sys.server_principals WHERE name='sa'" \
+                  &>/dev/null; then
+                echo "Security catalog ready at attempt $i, running init.sql..."
+                /opt/mssql-tools/bin/sqlcmd \
+                  -S sqlserverdb -U sa -P "$SA_PASSWORD" -C \
+                  -i /scripts/init.sql
+                exit 0
+              fi
+              echo "Attempt $i/60 — not ready yet, waiting 10s..."
+              sleep 10
+            done
+            echo "ERROR: SQL Server never became fully ready"
+            exit 1
+
+        volumeMounts:
+        - name: init-scripts
+          mountPath: /scripts   # init.sql will be at /scripts/init.sql
+
+      volumes:
+      - name: init-scripts
+        configMap:
+          name: sqlserver-init

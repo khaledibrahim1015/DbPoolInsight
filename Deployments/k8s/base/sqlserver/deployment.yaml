@@ -8,80 +8,74 @@ metadata:
     app.kubernetes.io/part-of: dbpoolinsight
     app.kubernetes.io/component: sqlserver
 spec:
-      # SQL Server Express = single instance only (no clustering support)
- replicas: 1
- selector:
-   matchLabels:
-     app: sqlserverdb
- strategy:
+  # SQL Server Express = single instance only (no clustering support)
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sqlserverdb
+  strategy:
     # Recreate prevents two instances fighting over the PVC
-   type: Recreate
-
+    type: Recreate
   template:
-   metadata:
-     labels:
-       app: sqlserverdb
-       app.kubernetes.io/part-of: dbpoolinsight
-   
-   spec:
-    securityContext:
-      fsGroup: 10001 # SQL Server runs as non-root with this GID # mssql group — required for volume ownership
+    metadata:
+      labels:
+        app: sqlserverdb
+        app.kubernetes.io/part-of: dbpoolinsight
+    spec:
 
-    containers:
-     - name: sqlserver
-       image: mcr.microsoft.com/mssql/server:2022-latest
-       imagePullPolicy: IfNotPresent
-       ports:
+      containers:
+      - name: sqlserver
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        imagePullPolicy: IfNotPresent
+        ports:
         - name: mssql
           containerPort: 1433
           protocol: TCP
-
-       # override default command to run our entrypoint script (which starts SQL Server and runs init.sql)
-       command: ["/bin/bash", "/scripts/entrypoint.sh"]
-       env:
+        # # override default command to run our entrypoint script (which starts SQL Server and runs init.sql)
+        # command: ["/bin/bash", "/scripts/entrypoint.sh"]
+        env:
         - name: ACCEPT_EULA
           value: "Y"
         - name: MSSQL_PID
-          value: "Express"
-        - name: SA_PASSWORD
+          value: "Developer"
+        - name: MSSQL_SA_PASSWORD  
           valueFrom:
             secretKeyRef: 
-             name: dbpoolinsight-secrets
-             key: SA_PASSWORD
-
-    
-          # ── Health probes ─────────────────────────────────────────────────
-          # readinessProbe: gates traffic — pod won't receive connections until ready
-       readinessProbe:
-        exec:
-          command:
-          - /bin/bash
-          - -c
-          - >
-            /opt/mssql-tools18/bin/sqlcmd
-            -S localhost -U sa -P "$SA_PASSWORD" -C
-            -Q "SELECT 1" > /dev/null 2>&1
+              name: dbpoolinsight-secrets
+              key: SA_PASSWORD
+        
+        # ── Health probes ─────────────────────────────────────────────────
+        # readinessProbe: gates traffic — pod won't receive connections until ready
+        readinessProbe:
+          exec:
+            command:
+            - /bin/bash
+            - -c
+            - >
+              /opt/mssql-tools18/bin/sqlcmd
+              -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C
+              -Q "SELECT 1" > /dev/null 2>&1
           initialDelaySeconds: 30
           periodSeconds: 10
           timeoutSeconds: 5
           failureThreshold: 10
 
-          # livenessProbe: restarts the pod if SQL Server crashes
-       livenessProbe:
-       exec:
-         command:
-         - /bin/bash
-         - -c
-         - >
-           /opt/mssql-tools18/bin/sqlcmd
-           -S localhost -U sa -P "$SA_PASSWORD" -C
-           -Q "SELECT 1" > /dev/null 2>&1
-         initialDelaySeconds: 60
-         periodSeconds: 20
-         timeoutSeconds: 5
-         failureThreshold: 3
+        # livenessProbe: restarts the pod if SQL Server crashes
+        livenessProbe:
+          exec:
+            command:
+            - /bin/bash
+            - -c
+            - >
+              /opt/mssql-tools18/bin/sqlcmd
+              -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C
+              -Q "SELECT 1" > /dev/null 2>&1
+          initialDelaySeconds: 60
+          periodSeconds: 20
+          timeoutSeconds: 5
+          failureThreshold: 3
 
-          # ── Resources ─────────────────────────────────────────────────────
+        # ── Resources ─────────────────────────────────────────────────────
         resources:
           requests:
             memory: "1Gi"
@@ -90,26 +84,37 @@ spec:
             memory: "2Gi"
             cpu: "1000m"
 
-
-       # ── Volume mounts ─────────────────────────────────────────────────
-       volumeMounts:
-        # Mount the entire ConfigMap as a directory at /scripts, so both entrypoint.sh and init.sql are available there
-        - name: init-scripts
-          mountPath: /scripts
-          readOnly: false  # ConfigMap is read-only, but we need write permissions for the entrypoint script to execute properly (e.g. for logging)
-
-       # Persistent data directory
+        # ── Volume mounts ─────────────────────────────────────────────────
+        volumeMounts:
+        # # Mount the entire ConfigMap as a directory at /scripts, so both entrypoint.sh and init.sql are available there
+        # - name: init-scripts
+        #   mountPath: /scripts
+        #   readOnly: false  # ConfigMap is read-only, but we need write permissions for the entrypoint script to execute properly (e.g. for logging)
+        
+        # Persistent data directory
         - name: sqlserver-data
           mountPath: /var/opt/mssql
-    volumes:
+
+      volumes:
       - name: init-scripts
         configMap:
-         name: sqlserver-init
-         # Mount the entire ConfigMap as a directory at /scripts, so both entrypoint.sh and init.sql are available there
-         # This also allows us to add more scripts in the future without changing the Deployment
-         # default mode is 0644 will make the scripts readable but not executable, so we set it to 0755 to allow execution of entrypoint.sh
-         defaultMode: 0755
+          name: sqlserver-init
+          # Mount the entire ConfigMap as a directory at /scripts, so both entrypoint.sh and init.sql are available there
+          # This also allows us to add more scripts in the future without changing the Deployment
+          # default mode is 0644 will make the scripts readable but not executable, so we set it to 0755 to allow execution of entrypoint.sh
+          defaultMode: 0755
       
       - name: sqlserver-data
         persistentVolumeClaim:
           claimName: sqlserver-data
+
+# troubleshooting tips:
+# # Check the pod logs
+
+# kubectl describe pod <pod_name> -n dbpoolinsight
+# kubectl logs -n dbpoolinsight -l app=sqlserverdb --follow
+# # Verify databases
+# kubectl exec -it -n dbpoolinsight deployment/sqlserverdb -- /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "StrongPassword123!!" -C -Q "SELECT @@VERSION"
+# # Verify login
+# kubectl exec -it -n dbpoolinsight deployment/sqlserverdb -- /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "StrongPassword123!!" -C -Q "SELECT name FROM sys.databases"
+# kubectl exec -it -n dbpoolinsight deployment/sqlserverdb -- /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "StrongPassword123!!" -C -Q "SELECT name FROM sys.server_principals WHERE name = 'khaled'"
