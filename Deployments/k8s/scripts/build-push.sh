@@ -73,6 +73,12 @@ echo "  Dockerfile: Docker/Dockerfile.efcoreapi"
 echo ""
 
 
+# In Case there are  trailing spaces after the \. In bash, \ only continues the line if it's the very last character — any spaces after it break the continuation, making "$PROJECT_ROOT" on the next line a separate command, not an argument to docker build.
+# Run this to confirm and strip them all at once:
+# Run this to confirm and strip them all at once:
+# sed -i 's/[[:space:]]*$//' ./build-push.sh
+# This removes all trailing whitespace from every line
+
 docker build \
   --file "$PROJECT_ROOT/Deployments/Docker/Dockerfile.efcoreapi" \
   --target final \
