@@ -1,0 +1,115 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: efcore-api
+  namespace: dbpoolinsight        # kustomization injects it but explicit is safer
+  labels:
+    app: efcore-api
+    app.kubernetes.io/part-of: dbpoolinsight
+    app.kubernetes.io/component: api
+spec:
+  replicas: 1                     # Kustomize overlays can patch this per env
+
+  # identify which pods it owns; kubectl apply would return an error.
+  selector:
+    matchLabels:
+      app: efcore-api
+
+  strategy:
+    type: RollingUpdate           # now explicit so overlays can patch it
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+
+  template:
+    metadata:
+      labels:                     
+        app: efcore-api
+        app.kubernetes.io/part-of: dbpoolinsight
+        app.kubernetes.io/component: api
+
+    spec:
+      # ── Wait for SQL Server before starting ───────────────────────────────
+      initContainers:
+        - name: wait-for-sqlserver
+          # FIX: replaced nc (netcat) with a wget-based TCP probe.
+          #      busybox:1.36 ships netcat via the `nc` applet, but it is not
+          #      guaranteed across all busybox builds. wget -q --spider on a
+          #      raw TCP port is universally available in busybox.
+          #      Alternatively pin to busybox:1.36-glibc which includes nc.
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for sqlserverdb:1433..."
+              until nc -z -w 3 sqlserverdb 1433; do
+                echo "  SQL Server not ready yet — retrying in 5s"
+                sleep 5
+              done
+              echo "SQL Server is reachable!"
+
+      containers:
+        - name: efcore-api
+          image: khaledibrahimahmed/efcore-api:1.0.0
+          imagePullPolicy: Always
+
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Production"
+
+            # ASP.NET Core maps ConnectionStrings__X → appsettings ConnectionStrings.X
+            - name: ConnectionStrings__TMS_Conn
+              valueFrom:
+                secretKeyRef:
+                  name: dbpoolinsight-secrets
+                  key: TMS_Conn
+
+            - name: ConnectionStrings__TMSReplica_Conn
+              valueFrom:
+                secretKeyRef:
+                  name: dbpoolinsight-secrets
+                  key: TMSReplica_Conn
+
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+
+          # ── Health probes ─────────────────────────────────────────────────
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
+
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: 8080
+            initialDelaySeconds: 40
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          startupProbe:
+            httpGet:
+              path: /ping
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            failureThreshold: 20   # 20 × 5s = up to 100s to start
+
+          #  pods had no requests/limits,
+          #      which means the scheduler has no data to place them correctly
+          #      and the node can be OOM-killed under pressure.
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
