@@ -51,7 +51,7 @@ spec:
 
       containers:
         - name: efcore-api
-          image: khaledibrahimahmed/efcore-api:1.0.0
+          image: khaledibrahimahmed/efcore-api:1.0.0  # overridden by images: in every overlay
           imagePullPolicy: Always
 
           env:
