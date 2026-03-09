@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: efcore-api
+  namespace: dbpoolinsight
+spec:
+  template:
+    spec:
+      containers:
+      - name: efcore-api  #      Must match containers[].name in base deployment.yaml → "efcore-api"
+        resources:
+          requests:
+            memory: "128Mi" 
+            cpu: "100m"    
+          limits:
+            memory: "256Mi"
+            cpu: "250m"
+
+
+

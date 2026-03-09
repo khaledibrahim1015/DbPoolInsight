@@ -1,0 +1,84 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# ── Inherit everything from base ──────────────────────────────────────────────
+# ── Build on top of base ──────────────────────────────────────────────────────
+resources:
+  - ../../base
+
+# ── Dev-specific labels ───────────────────────────────────────────────────────
+commonLabels:
+  environment: dev
+
+
+# ── Pin image tag for dev ─────────────────────────────────────────────────────
+# ── Dev image: use local/dev tag ──────────────────────────────────────────────
+images:
+  - name: khaledibrahimahmed/efcore-api
+    newTag: dev
+
+
+
+# ── Secret Generator ──────────────────────────────────────────────────────────
+# Reads KEY=VALUE pairs from dev.env and creates/updates the Secret.
+# Kustomize appends a content hash to the Secret name (e.g. dbpoolinsight-secrets-6b4f9d)
+# and updates all referencing Deployments automatically — forcing a pod rollout
+# whenever the secret values change.
+#
+# behavior: merge  → patches the existing base Secret instead of creating a new one
+# disableNameSuffixHash: true → keeps the name stable (dbpoolinsight-secrets)
+#   so secretKeyRef entries in the Deployment don't need to change.
+secretGenerator:
+  - name: dbpoolinsight-secrets
+    namespace: dbpoolinsight
+    behavior: merge               #      Without this, Kustomize treats it as `create` and errors because the base Secret already exists.                           
+    envs:
+      - dev.env                   # ← KEY=VALUE file, one secret per line
+    options:
+      disableNameSuffixHash: true # keep name stable for secretKeyRef lookups
+      labels:
+        app.kubernetes.io/part-of: dbpoolinsight
+
+
+# ── Dev-specific patches ──────────────────────────────────────────────────────
+# ── Patches ───────────────────────────────────────────────────────────────────
+# Each patch is a standalone file that strategic-merge-patches the base resource.
+# Strategic merge: only the fields you specify are overridden; everything else
+# from base (probes, ports, initContainers, etc.) is preserved.
+patches:
+  #  Scale down to 1 replica in dev (base default)
+  - path: patches/replica-patches.yaml   
+    #  Lower resource limits for dev (save resources on local cluster)
+  - path: patches/resource-patches.yaml 
+  # 3. Set Development environment for verbose logging
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: efcore-api
+        namespace: dbpoolinsight   #      Kustomize cannot match a namespaced base resource
+                                 
+      spec:
+        template:
+          spec:
+            containers:
+              - name: efcore-api  # FIX: was "khaledibrahimahmed/efcore-api" (the image name).
+                                  #      Must match containers[].name in base → "efcore-api"
+                env:
+                  - name: ASPNETCORE_ENVIRONMENT
+                    value: "Development"
+
+  # 4. Expose as NodePort in dev so you can reach it outside the cluster
+  - patch: |-
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: efcore-api
+        namespace: dbpoolinsight  # FIX: same missing namespace issue
+      spec:
+        type: NodePort
+        ports:
+          - name: http
+            port: 8080
+            targetPort: 8080
+            nodePort: 30080       # Access at http://<node-ip>:30080
