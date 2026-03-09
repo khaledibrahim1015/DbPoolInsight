@@ -1,0 +1,121 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: efcore-api-hpa
+  namespace: dbpoolinsight
+  labels:
+    app.kubernetes.io/part-of: dbpoolinsight
+    app.kubernetes.io/component: api
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: efcore-api
+  minReplicas: 2  # must match replicas: in deployment patch
+  maxReplicas: 6
+  metrics:
+    # Scale on CPU — standard metric available without extra setup
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+
+    # Scale on memory
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+  behavior:
+    # Scale up fast (pool exhaustion is immediately visible)
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 30
+    # Scale down slowly (avoid thrashing)
+    scaleDown:
+      stabilizationWindowSeconds: 300 # wait 5 min before scaling down — prevents flapping
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60
+
+
+
+#   2. Metrics Server must be installed for HPA to work
+# HPA needs the metrics-server to read CPU/memory. Check if it's running:
+# kubectl get deployment metrics-server -n kube-system
+# if missing 
+# kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+# 1. Fix the Metrics Server
+# In local or development clusters (like Docker Desktop, Minikube, or custom kubeadm setups), the metrics-server almost always fails to start because it tries to securely verify the certificates of your node's kubelet, which usually only have self-signed certificates in dev environments.
+
+# To fix this, we need to tell the metrics server to bypass that TLS check by adding the --kubelet-insecure-tls argument.
+
+# Step A: Verify the error (Optional but recommended)
+# Run this to check the logs. You will likely see an error mentioning "x509: certificate signed by unknown authority":
+
+# Bash
+# kubectl logs deployment/metrics-server -n kube-system
+# Step B: Add the insecure TLS flag
+# You can edit the deployment directly from your terminal:
+
+# Bash
+# kubectl edit deployment metrics-server -n kube-system
+# This will open the deployment manifest in your default text editor (usually Vim or Notepad). Scroll down to the spec.containers.args section and add - --kubelet-insecure-tls so it looks like this:
+
+# YAML
+#       containers:
+#       - args:
+#         - --cert-dir=/tmp
+#         - --secure-port=4443
+#         - --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
+#         - --kubelet-use-node-status-port
+#         - --metric-resolution=15s
+#         - --kubelet-insecure-tls  # <-- ADD THIS LINE
+# Save and close the file. Kubernetes will automatically terminate the failing pod and spin up a new one with the updated configuration.
+
+# Step C: Verify it's running
+# Wait a few seconds and run your check again. It should transition to 1/1 READY:
+
+# Bash
+# kubectl get deployment metrics-server -n kube-system
+
+
+
+
+# Metrics Server in Kubernetes
+# 1
+# Metrics Server is a scalable and efficient source of container resource metrics for Kubernetes built-in autoscaling pipelines. It collects resource metrics from Kubelets and exposes them in the Kubernetes API server through the Metrics API. This allows the Horizontal Pod Autoscaler (HPA) and Vertical Pod Autoscaler (VPA) to use these metrics for autoscaling purposes.
+# Key Features
+# Single Deployment: Works on most clusters with a single deployment.
+# Fast Autoscaling: Collects metrics every 15 seconds.
+# Resource Efficiency: Uses 1 mili core of CPU and 2 MB of memory for each node in a cluster.
+# Scalability: Supports clusters with up to 5,000 nodes.
+# Use Cases
+# CPU/Memory Based Horizontal Autoscaling: Adjusts the number of pod replicas based on CPU and memory usage.
+# Vertical Autoscaling: Automatically adjusts or suggests the resources needed by containers.
+# Installation
+# Metrics Server can be installed directly from a YAML manifest or via the official Helm chart. To install the latest Metrics Server release from the components.yaml manifest, run the following command:
+# kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+# Copy
+# For high availability mode, use the following command:
+# kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/high-availability-1.21+.yaml
+# Copy
+# Ensure your cluster has at least 2 nodes for high availability.
+# Configuration
+# Metrics Server requires specific cluster and network configurations:
+# Kube-apiserver: Must enable an aggregation layer.
+# Nodes: Must have Webhook authentication and authorization enabled.
+# Kubelet Certificate: Needs to be signed by the cluster Certificate Authority or disable certificate validation by passing --kubelet-insecure-tls to Metrics Server.
+# Network: Should support communication between the control plane and Metrics Server, and between Metrics Server and Kubelet on all nodes.
+# Important Considerations
+# Not for Monitoring Solutions: Metrics Server is meant only for autoscaling purposes and should not be used to forward metrics to monitoring solutions.
+# Resource Requests: Default resource requests are 100m core of CPU and 200MiB of memory, suitable for clusters up to 100 nodes. For larger clusters, allocate an additional 1m core and 2MiB memory per node.
+# Conclusion
+# Metrics Server is an essential component for Kubernetes autoscaling, providing efficient and scalable resource metrics. However, it is crucial to ensure that your cluster meets the specific requirements and configurations for optimal performance.
