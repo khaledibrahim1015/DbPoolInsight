@@ -17,8 +17,7 @@ commonLabels:
 # ── Prod image: pin to a specific immutable tag (never use :latest in prod) ───
 images:
   - name: khaledibrahimahmed/efcore-api
-    newTag: "1.0.0"
-
+    newTag: "1.0.1"
 
 
 # ── Secret Generator ──────────────────────────────────────────────────────────

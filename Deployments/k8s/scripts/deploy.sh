@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
+
 # =============================================================================
 # scripts/deploy.sh
-# Full deployment script for DbPoolInsight on Kubernetes
+# Full deployment script for DbPoolInsight (Build + Push + Deploy) on Kubernetes
 #
 # Usage:
-#   ./scripts/deploy.sh dev dbpoolinsight    # deploy dev overlay
-#   ./scripts/deploy.sh prod dbpoolinsight   # deploy prod overlay
+#   ./scripts/deploy.sh dev dbpoolinsight --build khaledibrahimahmed latest   # deploy dev overlay
+#   ./scripts/deploy.sh prod dbpoolinsight --build khaledibrahimahmed 1.0.1 # # deploy prod overlay
 #   ./scripts/deploy.sh loadtest             # run k6 load test job
 # =============================================================================
-
 # ── Bash Strict Mode ──────────────────────────────────────────────────────────
 # set -e: Exit immediately if any command returns a non-zero (error) status.
 # set -u: Exit if an undefined variable is referenced. Prevents silent bugs.
@@ -18,13 +18,51 @@ set -euo pipefail
 
 # ── Global Variables ──────────────────────────────────────────────────────────
 # Use parameter expansion syntax ${VAR:-default} to set default values if none are provided.
+
 ENVIRONMENT="${1:-dev}"          # Defaults to 'dev' if the first argument ($1) is missing
 NAMESPACE="${2:-dbpoolinsight}"  # Defaults to 'dbpoolinsight' if the second argument ($2) is missing
+SHOULD_BUILD=false
+REGISTRY=""
+TAG="latest"
+
+# Shift the first two positional arguments so we can parse flags
+shift 2 || true 
+
+# Parse optional flags
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -b|--build)
+      SHOULD_BUILD=true
+      REGISTRY="${2:? "Error: --build requires a registry (e.g., docker.io/user)"}"
+      shift 2
+      # Check if a specific tag was provided after the registry
+      if [[ $# -gt 0 && ! $1 =~ ^- ]]; then
+        TAG="$1"
+        shift
+      fi
+      ;;
+    *)
+      shift # Ignore unknown flags
+      ;;
+  esac
+done
+
+
 
 # Resolve absolute paths safely, ensuring the script can be run from any directory.
 # BASH_SOURCE[0] gets the script's path. dirname gets the directory. cd/pwd resolves it to an absolute path.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(dirname "$SCRIPT_DIR")" # Assumes root is one level up from the scripts folder
+# ROOT_DIR is two levels up from Deployments/k8s/scripts
+ROOT_DIR="$(dirname "$(dirname "$(dirname "$SCRIPT_DIR")")")"
+
+
+
+
+
+
+
+
+
 
 
 # ── Helper Functions & UI ─────────────────────────────────────────────────────
@@ -81,27 +119,44 @@ check_prerequisites(){
 # Handles the actual deployment to Kubernetes using Kustomize overlays.
 deploy_app(){
   
-  # Define the overlay path dynamically based on the ENVIRONMENT variable.
-  local OVERLAY="$ROOT_DIR/k8s/overlays/$ENVIRONMENT"
-  
-  # Check if the calculated overlay directory actually exists on disk.
-  [ -d "$OVERLAY" ] || die "Overlay not found: $OVERLAY"
+# Ensure no trailing newlines or spaces in the path
+    local OVERLAY_PATH="$ROOT_DIR/Deployments/k8s/overlays/$ENVIRONMENT"
+    
+    if [ ! -d "$OVERLAY_PATH" ]; then
+        die "Overlay path not found: $OVERLAY_PATH"
+    fi
+
+    if [ "$SHOULD_BUILD" = true ]; then
+        log "Updating Kustomize image tag to $TAG..."
+        
+        # Check if kustomize is installed for the 'edit' command
+        if command -v kustomize &>/dev/null; then
+            (cd "$OVERLAY_PATH" && kustomize edit set image "$REGISTRY/efcore-api:$TAG")
+        else
+            warn "Standalone 'kustomize' not found. Falling back to 'sed' for manifest update."
+            # Fallback: Find the image line and replace the tag
+            sed -i "s|newTag:.*|newTag: \"$TAG\"|" "$OVERLAY_PATH/kustomization.yaml"
+            # We call it directly since it's in the same folder
+            "$SCRIPT_DIR/build-push.sh" "$REGISTRY" "$TAG"
+        fi
+    fi
+
 
   log "Deploying $ENVIRONMENT overlay..."
   
   # 'kubectl apply -k' processes the kustomization.yaml in the target directory
   # and applies the resulting manifests to the cluster.
-  kubectl apply -k "$OVERLAY"
+  kubectl apply -k "$OVERLAY_PATH"
   ok "Kustomize overlay applied"
 
   log "Waiting for SQL Server to be ready..."
   # Halts script execution until the sqlserverdb deployment is fully rolled out.
   # Times out and fails the script if it takes longer than 3 minutes.
-  kubectl rollout status deployment/sqlserverdb -n "$NAMESPACE" --timeout=3m
+  kubectl rollout status deployment/sqlserverdb -n "$NAMESPACE" --timeout=5m
 
   log "Waiting for EFCore API to be ready..."
   # Halts script execution until the efcore-api deployment is ready (2-minute timeout).
-  kubectl rollout status deployment/efcore-api -n "$NAMESPACE" --timeout=2m
+  kubectl rollout status deployment/efcore-api -n "$NAMESPACE" --timeout=5m
 
   ok "Deployment complete!"
 }
@@ -117,7 +172,6 @@ print_access_info() {
 # currently we implement for both dev and prod 
     echo "  Port-forward commands (run in separate terminals):"
     echo "    kubectl port-forward svc/efcore-api 8080:8080 -n $NAMESPACE"
-
     echo ""
     echo "  Then open:"
     echo "    API:        http://localhost:8080/swagger/index.html"
@@ -157,8 +211,8 @@ main(){
       # THIRD DEPLOY APP FOR SPECIFIC ENVIRONMENT 
       deploy_app
       
-      # [TODO]: PRINT ACCESS INFO (e.g., retrieving NodePort, LoadBalancer IP, or Ingress host)
-      print_access_info
+      # PRINT ACCESS INFO (e.g., retrieving NodePort, LoadBalancer IP, or Ingress host)
+       print_access_info
       ;; # Break out of case statement
 
     loadtest)
