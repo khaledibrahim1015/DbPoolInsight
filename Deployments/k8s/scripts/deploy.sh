@@ -106,7 +106,26 @@ deploy_app(){
   ok "Deployment complete!"
 }
 
+# ── Print access info ─────────────────────────────────────────────────────────
+print_access_info() {
+  echo ""
+  echo -e "${GREEN}═══════════════════════════════════════════════════════${NC}"
+  echo -e "${GREEN}  DbPoolInsight deployed to: $ENVIRONMENT${NC}"
+  echo -e "${GREEN}═══════════════════════════════════════════════════════${NC}"
+  echo ""
 
+# currently we implement for both dev and prod 
+    echo "  Port-forward commands (run in separate terminals):"
+    echo "    kubectl port-forward svc/efcore-api 8080:8080 -n $NAMESPACE"
+
+    echo ""
+    echo "  Then open:"
+    echo "    API:        http://localhost:8080/swagger/index.html"
+    echo "    OTEL:        http://localhost:8080/metrics"
+    echo "    HEALTH:        http://localhost:8080/health"
+
+  echo ""
+}
 
 
 
@@ -139,6 +158,7 @@ main(){
       deploy_app
       
       # [TODO]: PRINT ACCESS INFO (e.g., retrieving NodePort, LoadBalancer IP, or Ingress host)
+      print_access_info
       ;; # Break out of case statement
 
     loadtest)
