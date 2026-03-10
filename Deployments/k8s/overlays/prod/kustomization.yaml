@@ -1,0 +1,71 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# ── Inherit everything from base ──────────────────────────────────────────────
+# ── Build on top of base ──────────────────────────────────────────────────────
+# Extra prod-only files (ingress(implement it later), hpa (integarate it with metrics)) (question how integrate custom metrics from efcoreobservability library with hpa )
+# are listed alongside the base reference
+resources:
+  - ../../base
+  - hpa.yaml
+
+# ── Prod-specific annotations (avoid commonLabels — it mutates Service selectors) ──
+commonLabels:
+  environment: prod
+
+
+# ── Prod image: pin to a specific immutable tag (never use :latest in prod) ───
+images:
+  - name: khaledibrahimahmed/efcore-api
+    newTag: "1.0.1"
+
+
+# ── Secret Generator ──────────────────────────────────────────────────────────
+# Reads KEY=VALUE pairs from dev.env and creates/updates the Secret.
+# Kustomize appends a content hash to the Secret name (e.g. dbpoolinsight-secrets-6b4f9d)
+# and updates all referencing Deployments automatically — forcing a pod rollout
+# whenever the secret values change.
+#
+# behavior: merge  → patches the existing base Secret instead of creating a new one
+# disableNameSuffixHash: true → keeps the name stable (dbpoolinsight-secrets)
+#   so secretKeyRef entries in the Deployment don't need to change.
+secretGenerator:
+  - name: dbpoolinsight-secrets
+    namespace: dbpoolinsight
+    behavior: merge               #      Without this, Kustomize treats it as `create` and errors because the base Secret already exists.                           
+    envs:
+      - prod.env                   # ← KEY=VALUE file, one secret per line
+    options:
+      disableNameSuffixHash: true # keep name stable for secretKeyRef lookups
+      labels:
+        app.kubernetes.io/part-of: dbpoolinsight
+
+
+# ── Dev-specific patches ──────────────────────────────────────────────────────
+# ── Patches ───────────────────────────────────────────────────────────────────
+# Each patch is a standalone file that strategic-merge-patches the base resource.
+# Strategic merge: only the fields you specify are overridden; everything else
+# from base (probes, ports, initContainers, etc.) is preserved.
+patches:
+  #  Scale down to 1 replica in prod (base default)
+  - path: patches/replica-patches.yaml   
+    #  Lower resource limits for dev (save resources on local cluster)
+  - path: patches/resource-patches.yaml 
+  # 3. Set Development environment for verbose logging
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: efcore-api
+        namespace: dbpoolinsight   #      Kustomize cannot match a namespaced base resource
+                                 
+      spec:
+        template:
+          spec:
+            containers:
+              - name: efcore-api  # FIX: was "khaledibrahimahmed/efcore-api" (the image name).
+                                  #      Must match containers[].name in base → "efcore-api"
+                env:
+                  - name: ASPNETCORE_ENVIRONMENT
+                    value: "Production"
+
