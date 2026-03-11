@@ -1,0 +1,177 @@
+# helm/monitoring-values.yaml
+# ============================================================
+# kube-prometheus-stack Helm values for DbPoolInsight
+#
+# Install:
+#   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+#   helm repo update
+#   helm install monitoring prometheus-community/kube-prometheus-stack \
+#     --namespace dbpoolinsight \
+#     --create-namespace \
+#     -f helm/monitoring-values.yaml
+#
+# Upgrade:
+#   helm upgrade monitoring prometheus-community/kube-prometheus-stack \
+#     --namespace dbpoolinsight \
+#     -f helm/monitoring-values.yaml
+# ============================================================
+
+# ── Grafana ────────────────────────────────────────────────────────────────────
+grafana:
+  enabled: true
+  adminPassword: admin   # override via --set grafana.adminPassword=<secret> in CI
+
+  service:
+    type: ClusterIP   # exposed via Ingress in prod, NodePort in dev
+
+  # ── Persistence ──────────────────────────────────────────────────────────
+  persistence:
+    enabled: true
+    size: 2Gi
+
+  # ── Datasource: point to the Prometheus deployed by this chart ───────────
+  additionalDataSources:
+    - name: Prometheus
+      type: prometheus
+      uid: prometheus          # matches the UID in your dashboard JSON
+      url: http://monitoring-kube-prometheus-prometheus:9090
+      access: proxy
+      isDefault: true
+      editable: true
+      jsonData:
+        timeInterval: "15s"
+        queryTimeout: "60s"
+        httpMethod: POST
+
+  # ── Dashboard provisioning ────────────────────────────────────────────────
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: dbpoolinsight
+          orgId: 1
+          type: file
+          disableDeletion: false
+          updateIntervalSeconds: 30
+          allowUiUpdates: true
+          options:
+            path: /var/lib/grafana/dashboards/dbpoolinsight
+
+  # ── Auto-load your efcore dashboard from a URL or inline ─────────────────
+  # Option A: load from a GitHub raw URL (recommended — keeps dashboard in source control)
+  dashboardsConfigMaps:
+    dbpoolinsight: "efcore-dashboard-configmap"
+  # You create this ConfigMap with:
+  #   kubectl create configmap efcore-dashboard-configmap \
+  #     --from-file=efcore-dashboard.json=Deployments/Docker/monitoring/grafana/dashboards/efcore-dashboard.json \
+  #     -n dbpoolinsight
+  livenessProbe:
+    httpGet:
+      path: /api/health
+      port: 3000
+    initialDelaySeconds: 120    # give migrations time to finish
+    timeoutSeconds: 30
+    periodSeconds: 30
+    failureThreshold: 10
+
+  readinessProbe:
+    httpGet:
+      path: /api/health
+      port: 3000
+    initialDelaySeconds: 60
+    timeoutSeconds: 30
+    periodSeconds: 10
+    failureThreshold: 10
+# ── Prometheus ─────────────────────────────────────────────────────────────────
+prometheus:
+  enabled: true
+
+  prometheusSpec:
+    # ── Retention ────────────────────────────────────────────────────────────
+    retention: 15d
+    retentionSize: "4GB"
+
+    # ── Storage ──────────────────────────────────────────────────────────────
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 5Gi
+
+    # ── Scrape interval to match your efcore-api metrics ─────────────────────
+    scrapeInterval: "5s"
+    evaluationInterval: "15s"
+
+    # ── Scrape config for efcore-api ─────────────────────────────────────────
+    # Uses pod annotation-based discovery — no ServiceMonitor needed
+    # additionalScrapeConfigs:
+    #   - job_name: efcore-api
+    #     scrape_interval: 5s
+    #     metrics_path: /metrics
+    #     kubernetes_sd_configs:
+    #       - role: pod
+    #         namespaces:
+    #           names: [dbpoolinsight]
+    #     relabel_configs:
+    #       # Only scrape pods with prometheus.io/scrape: "true"
+    #       - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+    #         action: keep
+    #         regex: "true"
+    #       # Use the port from the annotation
+    #       # - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_port]
+    #       #   action: replace
+    #       #   target_label: __address__
+    #       #   regex: (.+)
+    #       #   replacement: ${1}
+    #       - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+    #         action: replace
+    #         regex: ([^:]+)(?::\d+)?;(\d+)
+    #         replacement: $1:$2
+    #         target_label: __address__
+    #       - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+    #         action: replace
+    #         target_label: __metrics_path__
+    #         regex: (.+)
+    #       - source_labels: [__meta_kubernetes_namespace]
+    #         target_label: namespace
+    #       - source_labels: [__meta_kubernetes_pod_name]
+    #         target_label: pod
+
+    # ── Load your custom alert rules ─────────────────────────────────────────
+    additionalRulesForClusterRole: []
+
+  # ── Load EFCore alert rules as a PrometheusRule CRD ──────────────────────
+  # (applied separately — see helm/efcore-rules.yaml)
+
+# ── Alertmanager ───────────────────────────────────────────────────────────────
+alertmanager:
+  enabled: true
+  alertmanagerSpec:
+    storage:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 1Gi
+
+# ── Disable components we don't need ──────────────────────────────────────────
+kubeStateMetrics:
+  enabled: true   # useful cluster-level metrics
+
+nodeExporter:
+  enabled: true   # per-node CPU/memory/disk metrics
+
+kubeApiServer:
+  enabled: false  # not needed for app-level observability
+
+kubeEtcd:
+  enabled: false
+
+kubeScheduler:
+  enabled: false
+
+kubeControllerManager:
+  enabled: false

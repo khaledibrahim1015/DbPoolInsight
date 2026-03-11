@@ -1,0 +1,16 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: efcore-api
+  namespace: dbpoolinsight
+  labels:
+    release: monitoring          # must match kube-prometheus-stack release name
+    app.kubernetes.io/part-of: dbpoolinsight
+spec:
+  selector:
+    matchLabels:
+      app: efcore-api
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 5s
