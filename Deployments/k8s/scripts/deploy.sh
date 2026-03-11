@@ -115,6 +115,58 @@ check_prerequisites(){
   ok " Prerequisites Ok "
 }
 
+
+
+# ── Install / upgrade monitoring stack via Helm ───────────────────────────────
+
+install_monitoring() {
+  log "Installing kube-prometheus-stack via Helm..."
+
+  helm repo add prometheus-community https://prometheus-community.github.io/helm-charts 2>/dev/null || true
+  helm repo update
+
+  helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
+    --namespace "$NAMESPACE" \
+    --create-namespace \
+    -f "$ROOT_DIR/Deployments/k8s/helm/monitoring-values.yaml"
+
+  ok "Monitoring stack installed"
+
+  log "Applying EFCore alert rules..."
+  kubectl apply -f "$ROOT_DIR/Deployments/k8s/helm/efcore-rules.yaml" -n "$NAMESPACE"
+  ok "Alert rules applied"
+
+  # Apply ServiceMonitor so Prometheus scrapes efcore-api metrics
+  log "Applying EFCore ServiceMonitor..."
+  kubectl apply -f "$ROOT_DIR/Deployments/k8s/helm/efcore-servicemonitor.yaml" -n "$NAMESPACE"
+  ok "ServiceMonitor applied"
+}
+# ── Load Grafana dashboard as ConfigMap ───────────────────────────────────────
+load_dashboard() {
+  local DASHBOARD_PATH="$ROOT_DIR/Deployments/k8s/helm/monitoring/grafana/dashboards/efcore-dashboard.json"
+
+
+
+  if [ -f "$DASHBOARD_PATH" ]; then
+    log "Loading Grafana dashboard ConfigMap..."
+    kubectl create configmap efcore-dashboard-configmap \
+      --from-file=efcore-dashboard.json="$DASHBOARD_PATH" \
+      -n "$NAMESPACE" \
+      --dry-run=client -o yaml | kubectl apply -f -
+    ok "Dashboard ConfigMap applied"
+  else
+    warn "Dashboard file not found at $DASHBOARD_PATH — skipping"
+    warn "Create the ConfigMap manually or place the dashboard JSON at the expected path"
+  fi
+}
+
+
+
+
+
+
+
+
 # deploy_app
 # Handles the actual deployment to Kubernetes using Kustomize overlays.
 deploy_app(){
@@ -151,12 +203,12 @@ deploy_app(){
 
   log "Waiting for SQL Server to be ready..."
   # Halts script execution until the sqlserverdb deployment is fully rolled out.
-  # Times out and fails the script if it takes longer than 3 minutes.
-  kubectl rollout status deployment/sqlserverdb -n "$NAMESPACE" --timeout=5m
+  # Times out and fails the script if it takes longer than 3 minutes.--timeout=5m
+  kubectl rollout status deployment/sqlserverdb -n "$NAMESPACE" 
 
   log "Waiting for EFCore API to be ready..."
   # Halts script execution until the efcore-api deployment is ready (2-minute timeout).
-  kubectl rollout status deployment/efcore-api -n "$NAMESPACE" --timeout=5m
+  kubectl rollout status deployment/efcore-api -n "$NAMESPACE" 
 
   ok "Deployment complete!"
 }
@@ -172,12 +224,16 @@ print_access_info() {
 # currently we implement for both dev and prod 
     echo "  Port-forward commands (run in separate terminals):"
     echo "    kubectl port-forward svc/efcore-api 8080:8080 -n $NAMESPACE"
+    echo "    kubectl port-forward svc/monitoring-grafana 3000:80 -n $NAMESPACE"
+    echo "    kubectl port-forward svc/monitoring-kube-prometheus-prometheus 9090:9090 -n $NAMESPACE"
+    echo ""
     echo ""
     echo "  Then open:"
     echo "    API:        http://localhost:8080/swagger/index.html"
-    echo "    OTEL:        http://localhost:8080/metrics"
-    echo "    HEALTH:        http://localhost:8080/health"
-
+    echo "    OTEL:       http://localhost:8080/metrics"
+    echo "    HEALTH:     http://localhost:8080/health"
+    echo "    Grafana:    http://localhost:3000  (admin / admin)"
+    echo "    Prometheus: http://localhost:9090"
   echo ""
 }
 
@@ -203,24 +259,28 @@ main(){
       # Execution block for DEV or PROD environments
       log "Running $ENVIRONMENT ... "
 
-      # [TODO]: Future additions can be placed here.
-      # LATER 
-      # FIRST RUNNING install_monitoring
-      # SECOND RUNNING load_dashboard
-
+       deploy_app
+      # # FIRST RUNNING 
+       load_dashboard
+      # second RUNNING 
+       install_monitoring
       # THIRD DEPLOY APP FOR SPECIFIC ENVIRONMENT 
-      deploy_app
+       
       
       # PRINT ACCESS INFO (e.g., retrieving NodePort, LoadBalancer IP, or Ingress host)
        print_access_info
       ;; # Break out of case statement
 
+    
+   
     loadtest)
       # Execution block for LOADTEST environment
       log "Running $ENVIRONMENT ... "
       # [TODO]: Add k6 execution or loadtest Job creation commands here.
       ;; # Break out of case statement
-      
+          
+    
+    
     *) 
       # Default catch-all block for unhandled or invalid environment arguments
       die "Unknown environment: $ENVIRONMENT. Use: dev | prod | loadtest"
@@ -232,3 +292,16 @@ main(){
 # Passes all script arguments directly into the main function.
 # Using "$@" ensures that arguments with spaces are preserved correctly.
 main "$@"
+
+
+
+#Troubleshooting 
+# kubectl delete pod monitoring-grafana-6cbb77fcd4-4ksh6 -n dbpoolinsight --force
+# kubectl delete pvc monitoring-grafana -n dbpoolinsight
+# helm upgrade monitoring prometheus-community/kube-prometheus-stack `  --namespace dbpoolinsight `  -f C:\Users\ZALL-TECH\Desktop\Projects\DbPoolInsight\DbPoolInsight\Deployments\k8s\helm\monitoring\grafana\dashboards\efcore-dashboard.json
+# helm upgrade monitoring prometheus-community/kube-prometheus-stack --namespace dbpoolinsight -f "C:\Users\ZALL-TECH\Desktop\Projects\DbPoolInsight\DbPoolInsight\Deployments\k8s\helm\monitoring-values.yaml"
+
+
+
+# kubectl create configmap efcore-dashboard-configmap --from-file=efcore-dashboard.json=C:\Users\ZALL-TECH\Desktop\Projects\DbPoolInsight\DbPoolInsight\Deployments\k8s\helm\monitoring\grafana\dashboards\efcore-dashboard.json -n dbpoolinsight --dry-run=client -o yaml | kubectl apply -f -
+# kubectl label configmap efcore-dashboard-configmap grafana_dashboard=1 -n dbpoolinsight --overwrite
