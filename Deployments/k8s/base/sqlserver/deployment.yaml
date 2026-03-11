@@ -37,7 +37,9 @@ spec:
         - name: ACCEPT_EULA
           value: "Y"
         - name: MSSQL_PID
-          value: "Developer"
+          value: "Express"
+        - name: MSSQL_MEMORY_LIMIT_MB
+          value: "1024"
         - name: MSSQL_SA_PASSWORD  
           valueFrom:
             secretKeyRef: 
@@ -55,9 +57,9 @@ spec:
               /opt/mssql-tools18/bin/sqlcmd
               -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C
               -Q "SELECT 1" > /dev/null 2>&1
-          initialDelaySeconds: 30
-          periodSeconds: 10
-          timeoutSeconds: 5
+          initialDelaySeconds: 60
+          periodSeconds: 15
+          timeoutSeconds: 30
           failureThreshold: 10
 
         # livenessProbe: restarts the pod if SQL Server crashes
@@ -70,10 +72,10 @@ spec:
               /opt/mssql-tools18/bin/sqlcmd
               -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C
               -Q "SELECT 1" > /dev/null 2>&1
-          initialDelaySeconds: 60
-          periodSeconds: 20
-          timeoutSeconds: 5
-          failureThreshold: 3
+          initialDelaySeconds: 120
+          periodSeconds: 30
+          timeoutSeconds: 30
+          failureThreshold: 5
 
         # ── Resources ─────────────────────────────────────────────────────
         resources:
