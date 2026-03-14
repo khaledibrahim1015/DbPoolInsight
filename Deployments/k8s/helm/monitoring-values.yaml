@@ -20,7 +20,11 @@
 grafana:
   enabled: true
   adminPassword: admin   # override via --set grafana.adminPassword=<secret> in CI
-
+    # Disable the init container that chowns /var/lib/grafana
+  # On Minikube hostPath volumes, leftover dirs from previous runs
+  # are owned by root and cause the chown to fail with Permission denied.
+  initChownData:
+    enabled: false
   service:
     type: ClusterIP   # exposed via Ingress in prod, NodePort in dev
 
@@ -29,19 +33,37 @@ grafana:
     enabled: true
     size: 2Gi
 
-  # ── Datasource: point to the Prometheus deployed by this chart ───────────
-  additionalDataSources:
-    - name: Prometheus
-      type: prometheus
-      uid: prometheus          # matches the UID in your dashboard JSON
-      url: http://monitoring-kube-prometheus-prometheus:9090
-      access: proxy
-      isDefault: true
-      editable: true
-      jsonData:
-        timeInterval: "15s"
-        queryTimeout: "60s"
-        httpMethod: POST
+  # ── Sidecar: disable the chart's built-in default Prometheus datasource ──
+  # This prevents a conflict where both the chart's auto-generated datasource
+  # and our custom one below are both marked isDefault: true, which causes
+  # Grafana to crash with "Only one datasource per organization can be marked
+  # as default".
+  sidecar:
+    datasources:
+      defaultDatasourceEnabled: false
+
+  # ── Datasource: static provisioning (replaces additionalDataSources) ─────
+  # Using 'datasources' instead of 'additionalDataSources' avoids the sidecar
+  # conflict. The deleteDatasources block ensures any stale entry from a
+  # previous install is cleaned up before the new one is written.
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      deleteDatasources:
+        - name: Prometheus
+          orgId: 1
+      datasources:
+        - name: Prometheus
+          type: prometheus
+          uid: prometheus          # matches the UID in your dashboard JSON
+          url: http://monitoring-kube-prometheus-prometheus:9090
+          access: proxy
+          isDefault: true
+          editable: true
+          jsonData:
+            timeInterval: "15s"
+            queryTimeout: "60s"
+            httpMethod: POST
 
   # ── Dashboard provisioning ────────────────────────────────────────────────
   dashboardProviders:
@@ -57,14 +79,14 @@ grafana:
           options:
             path: /var/lib/grafana/dashboards/dbpoolinsight
 
-  # ── Auto-load your efcore dashboard from a URL or inline ─────────────────
-  # Option A: load from a GitHub raw URL (recommended — keeps dashboard in source control)
+  # ── Auto-load your efcore dashboard from a ConfigMap ─────────────────────
   dashboardsConfigMaps:
     dbpoolinsight: "efcore-dashboard-configmap"
   # You create this ConfigMap with:
   #   kubectl create configmap efcore-dashboard-configmap \
   #     --from-file=efcore-dashboard.json=Deployments/Docker/monitoring/grafana/dashboards/efcore-dashboard.json \
   #     -n dbpoolinsight
+
   livenessProbe:
     httpGet:
       path: /api/health
@@ -82,6 +104,7 @@ grafana:
     timeoutSeconds: 30
     periodSeconds: 10
     failureThreshold: 10
+
 # ── Prometheus ─────────────────────────────────────────────────────────────────
 prometheus:
   enabled: true
@@ -104,46 +127,7 @@ prometheus:
     scrapeInterval: "5s"
     evaluationInterval: "15s"
 
-    # ── Scrape config for efcore-api ─────────────────────────────────────────
-    # Uses pod annotation-based discovery — no ServiceMonitor needed
-    # additionalScrapeConfigs:
-    #   - job_name: efcore-api
-    #     scrape_interval: 5s
-    #     metrics_path: /metrics
-    #     kubernetes_sd_configs:
-    #       - role: pod
-    #         namespaces:
-    #           names: [dbpoolinsight]
-    #     relabel_configs:
-    #       # Only scrape pods with prometheus.io/scrape: "true"
-    #       - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
-    #         action: keep
-    #         regex: "true"
-    #       # Use the port from the annotation
-    #       # - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_port]
-    #       #   action: replace
-    #       #   target_label: __address__
-    #       #   regex: (.+)
-    #       #   replacement: ${1}
-    #       - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
-    #         action: replace
-    #         regex: ([^:]+)(?::\d+)?;(\d+)
-    #         replacement: $1:$2
-    #         target_label: __address__
-    #       - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
-    #         action: replace
-    #         target_label: __metrics_path__
-    #         regex: (.+)
-    #       - source_labels: [__meta_kubernetes_namespace]
-    #         target_label: namespace
-    #       - source_labels: [__meta_kubernetes_pod_name]
-    #         target_label: pod
-
-    # ── Load your custom alert rules ─────────────────────────────────────────
     additionalRulesForClusterRole: []
-
-  # ── Load EFCore alert rules as a PrometheusRule CRD ──────────────────────
-  # (applied separately — see helm/efcore-rules.yaml)
 
 # ── Alertmanager ───────────────────────────────────────────────────────────────
 alertmanager:

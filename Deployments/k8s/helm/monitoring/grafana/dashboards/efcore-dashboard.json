@@ -142,7 +142,7 @@
             "uid": "prometheus"
           },
           "expr": "efcore_pool_utilization_percent{db_context=~\"$context\"}",
-          "legendFormat": "{{db_context}}",
+          "legendFormat": "{{db_context}} — {{instance}}",
           "refId": "A"
         }
       ]
@@ -202,7 +202,7 @@
             "uid": "prometheus"
           },
           "expr": "efcore_pool_leaks{db_context=~\"$context\"}",
-          "legendFormat": "{{db_context}}",
+          "legendFormat": "{{db_context}} — {{instance}}",
           "refId": "A"
         }
       ]
@@ -262,7 +262,7 @@
             "uid": "prometheus"
           },
           "expr": "efcore_pool_overflow_disposals_total{db_context=~\"$context\"}",
-          "legendFormat": "{{db_context}}",
+          "legendFormat": "{{db_context}} — {{instance}}",
           "refId": "A"
         }
       ]
@@ -328,7 +328,7 @@
             "uid": "prometheus"
           },
           "expr": "efcore_pool_return_rate_percent{db_context=~\"$context\"}",
-          "legendFormat": "{{db_context}}",
+         "legendFormat": "{{db_context}} — {{instance}}",
           "refId": "A"
         }
       ]
@@ -384,7 +384,7 @@
             "uid": "prometheus"
           },
           "expr": "efcore_pool_reuse_ratio{db_context=~\"$context\"}",
-          "legendFormat": "{{db_context}}",
+         "legendFormat": "{{db_context}} — {{instance}}",
           "refId": "A"
         }
       ]
@@ -440,7 +440,7 @@
             "uid": "prometheus"
           },
           "expr": "efcore_pool_rents_active{db_context=~\"$context\"}",
-          "legendFormat": "{{db_context}}",
+         "legendFormat": "{{db_context}} — {{instance}}",
           "refId": "A"
         }
       ]
@@ -487,7 +487,7 @@
             "uid": "prometheus"
           },
           "expr": "efcore_pool_instances_physical{db_context=~\"$context\"}",
-          "legendFormat": "{{db_context}}",
+         "legendFormat": "{{db_context}} — {{instance}}",
           "refId": "A"
         }
       ]
@@ -534,7 +534,7 @@
             "uid": "prometheus"
           },
           "expr": "efcore_pool_instances_available{db_context=~\"$context\"}",
-          "legendFormat": "{{db_context}}",
+         "legendFormat": "{{db_context}} — {{instance}}",
           "refId": "A"
         }
       ]
@@ -581,7 +581,7 @@
             "uid": "prometheus"
           },
           "expr": "efcore_pool_room_to_grow{db_context=~\"$context\"}",
-          "legendFormat": "{{db_context}}",
+         "legendFormat": "{{db_context}} — {{instance}}",
           "refId": "A"
         }
       ]
@@ -1136,7 +1136,7 @@
             "uid": "prometheus"
           },
           "expr": "efcore_standard_active{db_context=~\"$std_context\"}",
-          "legendFormat": "{{db_context}}",
+         "legendFormat": "{{db_context}} — {{instance}}",
           "refId": "A"
         }
       ]
@@ -1196,7 +1196,7 @@
             "uid": "prometheus"
           },
           "expr": "efcore_standard_leaks{db_context=~\"$std_context\"}",
-          "legendFormat": "{{db_context}}",
+         "legendFormat": "{{db_context}} — {{instance}}",
           "refId": "A"
         }
       ]
@@ -1243,7 +1243,7 @@
             "uid": "prometheus"
           },
           "expr": "efcore_standard_creations_total{db_context=~\"$std_context\"}",
-          "legendFormat": "{{db_context}}",
+         "legendFormat": "{{db_context}} — {{instance}}",
           "refId": "A"
         }
       ]
@@ -1290,7 +1290,7 @@
             "uid": "prometheus"
           },
           "expr": "efcore_standard_disposals_total{db_context=~\"$std_context\"}",
-          "legendFormat": "{{db_context}}",
+         "legendFormat": "{{db_context}} — {{instance}}",
           "refId": "A"
         }
       ]
