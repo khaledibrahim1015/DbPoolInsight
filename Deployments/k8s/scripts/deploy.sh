@@ -153,6 +153,8 @@ load_dashboard() {
       --from-file=efcore-dashboard.json="$DASHBOARD_PATH" \
       -n "$NAMESPACE" \
       --dry-run=client -o yaml | kubectl apply -f -
+
+    kubectl label configmap efcore-dashboard-configmap grafana_dashboard=1 -n dbpoolinsight --overwrite
     ok "Dashboard ConfigMap applied"
   else
     warn "Dashboard file not found at $DASHBOARD_PATH — skipping"
@@ -237,7 +239,19 @@ print_access_info() {
   echo ""
 }
 
-
+# ── Run k6 load test ──────────────────────────────────────────────────────────
+run_loadtest() {
+  log "Applying k6 ConfigMap and Job..."
+ 
+  # Delete any previous job run
+  kubectl delete job k6-loadtest -n "$NAMESPACE" --ignore-not-found
+ 
+  kubectl apply -f "$ROOT_DIR/Deployments/k8s/base/k6/configmap.yaml" -n "$NAMESPACE"
+  kubectl apply -f "$ROOT_DIR/Deployments/k8s/base/k6/job.yaml"       -n "$NAMESPACE"
+ 
+  log "k6 job started. Stream logs with:"
+  echo kubectl logs -f job/k6-loadtest -n $NAMESPACE
+}
 
 
 # ── Main Execution Controller ─────────────────────────────────────────────────
@@ -256,29 +270,17 @@ main(){
   # Route the script's behavior based on the specified environment
   case "$ENVIRONMENT" in 
     dev|prod)
-      # Execution block for DEV or PROD environments
       log "Running $ENVIRONMENT ... "
-
-       deploy_app
-      # # FIRST RUNNING 
-       load_dashboard
-      # second RUNNING 
-       install_monitoring
-      # THIRD DEPLOY APP FOR SPECIFIC ENVIRONMENT 
-       
-      
-      # PRINT ACCESS INFO (e.g., retrieving NodePort, LoadBalancer IP, or Ingress host)
-       print_access_info
-      ;; # Break out of case statement
-
-    
-   
+      deploy_app
+      load_dashboard      # ← Create the ConfigMap BEFORE Helm installs Grafana
+      install_monitoring
+      print_access_info
+      ;;
     loadtest)
       # Execution block for LOADTEST environment
       log "Running $ENVIRONMENT ... "
-      # [TODO]: Add k6 execution or loadtest Job creation commands here.
+      run_loadtest
       ;; # Break out of case statement
-          
     
     
     *) 
@@ -296,12 +298,17 @@ main "$@"
 
 
 #Troubleshooting 
-# kubectl delete pod monitoring-grafana-6cbb77fcd4-4ksh6 -n dbpoolinsight --force
+# kubectl delete pod monitoring-grafana-dbc8bffbf-g2x9w -n dbpoolinsight --force
 # kubectl delete pvc monitoring-grafana -n dbpoolinsight
 # helm upgrade monitoring prometheus-community/kube-prometheus-stack `  --namespace dbpoolinsight `  -f C:\Users\ZALL-TECH\Desktop\Projects\DbPoolInsight\DbPoolInsight\Deployments\k8s\helm\monitoring\grafana\dashboards\efcore-dashboard.json
 # helm upgrade monitoring prometheus-community/kube-prometheus-stack --namespace dbpoolinsight -f "C:\Users\ZALL-TECH\Desktop\Projects\DbPoolInsight\DbPoolInsight\Deployments\k8s\helm\monitoring-values.yaml"
-
+# kubectl rollout restart deployment/monitoring-grafana -n dbpoolinsight
 
 
 # kubectl create configmap efcore-dashboard-configmap --from-file=efcore-dashboard.json=C:\Users\ZALL-TECH\Desktop\Projects\DbPoolInsight\DbPoolInsight\Deployments\k8s\helm\monitoring\grafana\dashboards\efcore-dashboard.json -n dbpoolinsight --dry-run=client -o yaml | kubectl apply -f -
 # kubectl label configmap efcore-dashboard-configmap grafana_dashboard=1 -n dbpoolinsight --overwrite
+
+
+
+
+# docker pull gcr.io/k8s-minikube/kicbase:v0.0.50
