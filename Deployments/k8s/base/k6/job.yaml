@@ -1,0 +1,54 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: k6-loadtest
+  namespace: dbpoolinsight
+  labels:
+    app.kubernetes.io/part-of: dbpoolinsight
+    app.kubernetes.io/component: loadtest
+spec:
+  # Don't retry on failure — inspect logs instead
+  backoffLimit: 0
+  # Auto-cleanup after 1 hour
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app: k6-loadtest
+    spec:
+      restartPolicy: Never
+
+      # ── Wait for the API to be healthy before hammering it ────────────────
+      initContainers:
+        - name: wait-for-api
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for efcore-api /health endpoint..."
+              until wget -q -O /dev/null http://efcore-api:8080/health; do
+                echo "  API not ready — retrying in 5s"
+                sleep 5
+              done
+              echo "API is healthy, starting load test!"
+
+      containers:
+        - name: k6
+          image: grafana/k6:latest
+          command: ["k6", "run", "/scripts/loadtest.js"]
+          volumeMounts:
+            - name: k6-script
+              mountPath: /scripts
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "250m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+
+      volumes:
+        - name: k6-script
+          configMap:
+            name: k6-script
